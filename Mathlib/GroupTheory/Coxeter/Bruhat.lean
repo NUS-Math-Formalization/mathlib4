@@ -1,4 +1,4 @@
-import Mathlib.GroupTheory.Coxeter.inversion
+import Mathlib.GroupTheory.Coxeter.Inversion
 import Mathlib.Order.Interval.Basic
 
 open CoxeterSystem  List

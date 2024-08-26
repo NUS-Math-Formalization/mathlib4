@@ -34,7 +34,7 @@ end aux
 section StrongExchange
 
 variable {B : Type*}
-variable {W : Type} [Group W] [IsCoxeterGroup W]
+variable {W : Type} [Group W]
 variable {M : CoxeterMatrix B} (cs : CoxeterSystem M W)
 variable {l : List B} {t : W}
 

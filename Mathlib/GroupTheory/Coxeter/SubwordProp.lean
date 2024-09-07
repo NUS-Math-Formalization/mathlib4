@@ -207,10 +207,92 @@ lemma one_le : 1 ≤ u := by
   · rw [h]
   · exact le_of_lt cs (one_lt_of_ne_one cs h)
 
+lemma mul_simpleRefl_lt_adj {b v : cs.Group} (i : B) (h : lt_adj cs b v) :
+  b * (s i) ≤ v ∨ b * (s i) ≤ v * (s i) := by
+    rcases h.1 with ⟨t,h1⟩
+    by_cases h2 : s i = t
+    · rw [←h2] at h1; rw [h1.2]; exact Or.inl (le_refl _)
+    · have blev := (le_of_lt cs (TransGen.single h))
+      by_cases h3 : cs.IsRightInversion b (s i)
+      · have h31 : b * cs.simple i < b := mul_lt_of_IsRightInversion cs h3
+        exact Or.inl (le_trans (le_of_lt cs h31) blev)
+      · right
+        let t' : cs.Group := s i * t * s i
+        have heq : b * s i * t' = b * t * s i := by
+          simp [t']; rw [mul_assoc]; group; simp
+        have IsReflt': cs.IsReflection t' := by
+          have := (CoxeterSystem.isReflection_conj_iff cs (s i) t).2 h1.1
+          rwa [inv_simple] at this
+        have lbslvs : ℓ (b * s i) < ℓ (v * s i) := by
+          by_contra! hh
+          by_cases hlt : ℓ (v * s i) < ℓ (b * s i)
+          · rw [h1.2, ←heq] at hlt
+            let  redword_b := choose <| cs.exists_reduced_word' b
+            have redword_bspec := choose_spec (cs.exists_reduced_word' b)
+            let redword_bsi := redword_b ++ [i]
+            have redword_bsieq : π redword_bsi = b * s i := by
+              simp_rw [redword_bsi, wordProd_append, wordProd_singleton]; rw [redword_bspec.2]
+            rw [←redword_bsieq] at hlt
+            rcases StrongExchange cs IsReflt' hlt with ⟨ll', ⟨heq', ⟨i', hi'⟩ ⟩ ⟩
+            rw [redword_bsieq, heq, ←h1.2] at heq'
+            by_cases hdel_id : i' = redword_bsi.length - 1 <;> simp [redword_bsi] at *
+            · have : ll' = redword_b := by
+                rw [hi', hdel_id, eraseIdx_append_of_length_le (le_of_eq rfl)]
+                simp
+              rw [this, ←redword_bspec.2, h1.2, mul_assoc] at heq'
+              have : s i = t := by
+                nth_rw 1 [←mul_one b] at heq'
+                have := mul_left_cancel heq'
+                rw [←simple_sq cs i, pow_two] at this
+                exact mul_right_cancel this
+              exact h2 this
+            · have hi'lt : i'.1 < redword_b.length := by
+                push_neg at hdel_id
+                have := Fin.is_lt i'
+                simp [redword_bsi] at this
+                have : i'.1 ≤ redword_b.length  := Nat.le_of_lt_succ this
+                exact Nat.lt_of_le_of_ne this hdel_id
+              rw [List.eraseIdx_append_of_lt_length hi'lt _] at hi'
+              rw [hi', wordProd_append, wordProd_singleton] at heq'
+              have : cs.wordProd (redword_b.eraseIdx ↑i') = v := by
+                rw [←mul_one v, ←simple_sq cs i, pow_two, ←mul_assoc, ←heq']; simp
+              have hcontra := cs.length_wordProd_le (redword_b.eraseIdx i')
+              rw [this, length_eraseIdx hi'lt] at hcontra
+              have hcontra' : ℓ b < ℓ v := h.2
+              rw [←redword_bspec.1, ←redword_bspec.2] at hcontra
+              have : ℓ v < ℓ v  := by
+                calc
+                  _ ≤ ℓ b - 1 := hcontra
+                  _ ≤ ℓ v - 1 := Nat.sub_le_sub_right (_root_.le_of_lt h.2) 1
+                  _ < ℓ v :=Nat.sub_one_lt_of_lt hcontra'
+              linarith
+          · have : ℓ (v * s i) = ℓ (b * s i) := by push_neg at hlt; linarith
+            rw [h1.2, ←heq] at this
+            exact CoxeterSystem.IsReflection.length_mul_left_ne IsReflt' (b * s i) this
+        have : lt_adj cs (b * s i) (v * s i) := by
+          rw [←h1.2] at heq
+          exact ⟨⟨t', ⟨IsReflt', heq.symm⟩ ⟩, lbslvs⟩
+        exact le_of_lt cs (TransGen.single this)
+
+lemma mul_simpleRefl_le_of_le (i : B) (h : u ≤ v) : u * (s i) ≤ v ∨ u * (s i) ≤ v * (s i) := by
+  induction h with
+  | refl => exact Or.inr (le_refl _)
+  | @tail b v hub hbv ih =>
+    have blev := (le_of_lt cs (TransGen.single hbv ))
+    cases mul_simpleRefl_lt_adj cs i hbv with
+    | inl hl => cases ih with
+      | inl hll => exact Or.inl (le_trans hll blev)
+      | inr hrr => exact Or.inl (le_trans hrr hl)
+    | inr hr => cases ih with
+      | inl hll => exact Or.inl (le_trans hll blev)
+      | inr hrr => exact Or.inr (le_trans hrr hr)
+
 end definition
 
 section SubwordProp
+
 variable {ω l l' : List B}
+
 /-- If ` lt_adj W u v `, then exists reduced word of u is subword of reduced word of v. -/
 lemma subword_of_lt_adj (veq : v = π ω) (h : lt_adj cs u v) :
   ∃ ω' : List B, (cs.IsReduced ω' ∧ u = π ω') ∧ ω'.Sublist ω := by
@@ -250,25 +332,65 @@ theorem subword_of_le (veq : v = π ω) (wred : cs.IsReduced ω) : u ≤ v →
 
 def toCoxeterGroup : W → cs.Group := id
 
-lemma mul_simpleRefl_le (i : B) (h : u ≤ v) : u * (s i) ≤ v ∨ u * (s i) ≤ v * (s i) := sorry
-
 lemma List.dropLast_sublist_dropLast {α : Type} {l l' : List α} (hsub : l <+ l')
-  (hlast : l.getLast? = l'.getLast?) : l.dropLast <+ l'.dropLast := sorry
+  : l.dropLast <+ l'.dropLast := by
+    revert l
+    induction' l' with a ll' ih
+    · intro _ hsub ; simp at *; rw [hsub]; simp
+    · intro l hsub
+      cases sublist_cons_iff.1 hsub with
+      | inl hl =>
+        by_cases ll'nil : ll' = []
+        · simp [ll'nil] at *; simp [hl]
+        · rw [List.dropLast_cons_of_ne_nil ll'nil]
+          exact (ih hl).trans (sublist_cons_self a _)
+      | inr hr =>
+        rcases hr with ⟨r,hr⟩
+        by_cases rnil : r = []
+        · rw [rnil] at hr; rw [hr.1]; simp
+        · have ll'nnil : ll' ≠ [] := by
+            contrapose! rnil; rw [rnil] at hr; exact sublist_nil.1 hr.2
+          have := ih hr.2
+          rw [hr.1, dropLast_cons_of_ne_nil rnil, dropLast_cons_of_ne_nil ll'nnil]
+          exact Sublist.cons₂ a this
 
 lemma List.sublist_dropLast {α : Type} {l l' : List α} (hsub : l <+ l')
-  (hlast : ¬l.getLast? = l'.getLast?) : l <+ l'.dropLast := sorry
+  (hlast : ¬l.getLast? = l'.getLast?) : l <+ l'.dropLast := by
+    revert l
+    induction' l' with a ll' hll' <;> intro l hsub hlast
+    · simp; exact sublist_nil.1 hsub
+    · by_cases ll'nil : ll' = []
+      · simp [ll'nil] at *
+        exact Or.elim hsub (fun hl => hl) (fun hr => by simp [hr] at hlast)
+      · rw [getLast?_eq_getLast (a :: ll') (by simp), getLast_cons ll'nil,
+          ←getLast?_eq_getLast _ ll'nil] at hlast
+        cases sublist_cons_iff.1 hsub with
+        | inl hl => exact (hll' hl hlast).trans (by simp [dropLast_cons_of_ne_nil ll'nil])
+        | inr hr =>
+          rcases hr with ⟨r, hr⟩
+          by_cases rnil : r = []
+          · simp [rnil] at *; rw [hr, dropLast_cons_of_ne_nil ll'nil]; simp
+          · rw [hr.1, getLast?_eq_getLast (a :: r) (by simp), getLast_cons rnil,
+              ←getLast?_eq_getLast _ rnil] at hlast;
+            rw [hr.1, dropLast_cons_of_ne_nil ll'nil]
+            exact Sublist.cons₂ a (hll' hr.2 hlast)
 
 lemma isReduced_dropLast {ω : List B} (hω : cs.IsReduced ω) :
   cs.IsReduced ω.dropLast := by
   rw [dropLast_eq_take]
   exact isReduced_take cs hω (ω.length - 1)
 
-lemma test {l : List B} (h : cs.IsReduced l) :
+lemma dropLast_le {l : List B} (h : cs.IsReduced l) :
   toCoxeterGroup cs (π l.dropLast) ≤ toCoxeterGroup cs (π l) := by
     simp [toCoxeterGroup]
     by_cases tri : l = []
-    · sorry
-    · sorry
+    · simp [tri]
+    · have : ℓ (π l.dropLast) < ℓ (π l) := by
+        rw [h, dropLast_eq_take, cs.isReduced_take h, length_take]; simp; exact length_pos.2 tri
+      nth_rw 2 [←dropLast_concat_getLast tri] at *
+      rw [wordProd_append, wordProd_singleton] at *
+      exact le_of_lt cs
+        ((lt_reflection_mul_iff_length_lt cs (cs.isReflection_simple (l.getLast tri))).2 this)
 
 lemma le_of_subword (hl : IsReduced cs l) (hl' : IsReduced cs l') (hsub : l <+ l') :
    toCoxeterGroup cs (π l) ≤ toCoxeterGroup cs (π l') := by
@@ -284,14 +406,24 @@ lemma le_of_subword (hl : IsReduced cs l) (hl' : IsReduced cs l') (hsub : l <+ l
     · intro l l' hl hl' hsub hll'
       by_cases hlast : l.getLast? = l'.getLast?
       · have := hn (isReduced_dropLast cs hl) (isReduced_dropLast cs hl')
-          (List.dropLast_sublist_dropLast hsub hlast) (by rw [length_dropLast, hll']; norm_num)
+          (List.dropLast_sublist_dropLast hsub) (by rw [length_dropLast, hll']; norm_num)
         have l'nnil : l' ≠ [] := ne_nil_of_length_eq_add_one hll'
-        rcases (mul_simpleRefl_le cs (l'.getLast l'nnil) this) with hll | hrr
-        · sorry
-        · sorry
+        have lnnil : l ≠ [] := by
+            by_contra lnil
+            rw [List.getLast?_eq_getLast l' l'nnil, List.getLast?_eq_none_iff.2 lnil] at hlast
+            tauto
+        rcases (mul_simpleRefl_le_of_le cs (l'.getLast l'nnil) this) with hll | hrr <;>
+          rw [List.getLast?_eq_getLast l' l'nnil, List.getLast?_eq_getLast l lnnil,
+            Option.some_inj] at hlast
+        · rw [←wordProd_singleton, ←wordProd_append,
+            ←hlast, l.dropLast_append_getLast lnnil] at hll
+          exact le_trans hll (dropLast_le cs hl')
+        · nth_rw 1 [←hlast] at hrr
+          rw [←wordProd_singleton, ←wordProd_append, ←wordProd_singleton, ←wordProd_append] at hrr
+          rwa [l.dropLast_append_getLast lnnil, l'.dropLast_append_getLast l'nnil] at hrr
       · have subdropLast := hn hl (isReduced_dropLast cs hl')
           (List.sublist_dropLast hsub hlast) (by rw [length_dropLast, hll']; norm_num)
-        refine le_trans subdropLast (test cs hl')
+        exact le_trans subdropLast (dropLast_le cs hl')
 
 end SubwordProp
 

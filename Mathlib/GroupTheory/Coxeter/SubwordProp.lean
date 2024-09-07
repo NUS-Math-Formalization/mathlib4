@@ -1,12 +1,14 @@
 import Mathlib.GroupTheory.Coxeter.inversion
 import Mathlib.Order.Interval.Basic
+import Init.Data.List.Lemmas
+
 
 open CoxeterSystem  List Relation
 open Classical (choose choose_spec)
 
 
-variable {B : Type*}
-variable {W : Type} [Group W] [IsCoxeterGroup W]
+variable {B : Type}
+variable {W : Type} [Group W]
 variable {M : CoxeterMatrix B} (cs : CoxeterSystem M W)
 variable {l : List B} {t : W}
 
@@ -73,7 +75,6 @@ variable {u v : cs.Group}
 namespace Bruhat
 
 section definition
-
 
 def lt_adj  : W → W → Prop := fun u v =>
   (∃ t, cs.IsReflection t ∧ v = u * t) ∧ ℓ u < ℓ v
@@ -247,102 +248,50 @@ theorem subword_of_le (veq : v = π ω) (wred : cs.IsReduced ω) : u ≤ v →
       have : u < v := Relation.TransGen.tail' hab hbc
       exact subword_of_lt cs veq this
 
-lemma sublist_cases {α : Type} [DecidableEq α] {l l' : List α} : l <:+: l' ∨
-  ∃ n : Nat, (n < l.length) ∧ l[n]? ≠ l'[n]? := by
-    by_cases h : l <:+: l'
-    · exact Or.inl h
-    · right
-      contrapose! h
-      sorry --exact Or.inr (by contrapose! h; rw [List.ext_get? h]; exact infix_refl l')
+def toCoxeterGroup : W → cs.Group := id
 
-noncomputable def first_deleted_index {α : Type} [DecidableEq α] {l l' : List α}
-  (h : ¬l <:+: l') := Nat.find ((or_iff_right h).1 sublist_cases)
+lemma mul_simpleRefl_le (i : B) (h : u ≤ v) : u * (s i) ≤ v ∨ u * (s i) ≤ v * (s i) := sorry
 
-lemma first_deleted_index_lt_length {α : Type} [DecidableEq α] {l l' : List α} (h : ¬l <:+: l')
-  : first_deleted_index h < l.length := (Nat.find_spec ((or_iff_right h).1 sublist_cases)).1
+lemma List.dropLast_sublist_dropLast {α : Type} {l l' : List α} (hsub : l <+ l')
+  (hlast : l.getLast? = l'.getLast?) : l.dropLast <+ l'.dropLast := sorry
 
-lemma le_of_infix (hl : IsReduced cs l) (hl' : IsReduced cs l')
-  (h : l <:+: l') : π l ≤ π l' := by
-    sorry
+lemma List.sublist_dropLast {α : Type} {l l' : List α} (hsub : l <+ l')
+  (hlast : ¬l.getLast? = l'.getLast?) : l <+ l'.dropLast := sorry
 
-private def expSet (l l' : List (indexOf W)) :=
-  {ll //  π ll = π l ∧ IsReduced (csOf W) ll ∧ ll <+ l'}
+lemma isReduced_dropLast {ω : List B} (hω : cs.IsReduced ω) :
+  cs.IsReduced ω.dropLast := by
+  rw [dropLast_eq_take]
+  exact isReduced_take cs hω (ω.length - 1)
 
-private def self_mem_expSet {l l' : List (indexOf W)} (hl : IsReduced (csOf W) l)
-  (hsub : l <+ l') : expSet l l' := ⟨l, ⟨rfl, ⟨hl, hsub⟩⟩ ⟩
+lemma test {l : List B} (h : cs.IsReduced l) :
+  toCoxeterGroup cs (π l.dropLast) ≤ toCoxeterGroup cs (π l) := by
+    simp [toCoxeterGroup]
+    by_cases tri : l = []
+    · sorry
+    · sorry
 
-private instance (l l' : List (indexOf W)) : Fintype (expSet l l') := by
-  sorry
-
-lemma le_of_subword_aux (hl : IsReduced (csOf W) l) (hl' : IsReduced (csOf W) l') (hsub : l <+ l')
-  (h : ∀ ll : expSet l l', ¬ll.1 <:+: l')
-    : ∃ ll, IsReduced (csOf W) ll ∧ ll <+ l' ∧ π l < π ll ∧ ll.length = l.length + 1 := by
-      classical
-      let f (ll : expSet l l') : ℕ := first_deleted_index (h ll)
-      have ne  :  (Finset.univ.image f).Nonempty := sorry
-      let imax := ((Finset.univ).image f).max' ne
-      let lmax := choose <| Finset.mem_image.1 <| (Finset.max'_mem _ ne)
-      have lltl' : l.length < l'.length := by
-        have := length_le_of_sublist hsub
-        by_cases lt' : l.length < l'.length
-        · exact lt'
-        · have : l.length = l'.length := by linarith
-          have hh := infix_refl l
-          nth_rw 2 [Sublist.eq_of_length hsub this] at hh
-          exact False.elim <| (h ⟨l, ⟨rfl, ⟨hl, hsub⟩ ⟩ ⟩) hh
-      have imaxlt : imax < (lis l').length := by
-        exact (Finset.max'_lt_iff _ _).2 (fun y hy => (by
-        rw [CoxeterSystem.length_leftInvSeq]
-        have : y < l.length := by
-          obtain ⟨prey, hpre⟩ := Finset.mem_image.1 hy
-          have := first_deleted_index_lt_length (h prey)
-          rw [←hpre.2, ←hl]
-          rw [←prey.2.2.1, prey.2.1] at this
-          exact this
-        exact this.trans lltl'))
-      let t    := (lis l').get ⟨imax, imaxlt⟩
-      have tisRefl := (csOf W).isLeftInversion_of_mem_leftInvSeq hl' (t := t) (get_mem _ _ _)
-      have lttl : π lmax.1 < t * π lmax.1 := by
-        by_contra! gttl
-        have lle : ℓ (t * π lmax.1) ≤ ℓ (π lmax.1) := by
-          contrapose! gttl
-          sorry
-          --exact (mul_lt'_of_IsLeftInversion tisRefl).2 gttl
-        have llt : ℓ (t * π lmax.1) < ℓ (π lmax.1) := sorry
-        sorry
-        --have := StrongExchange' (csOf W) tisRefl llt
-        --obtain ⟨i, hi⟩ := List.mem_iff_get.1 this
-        -- by_cases ilt : i < imax
-        -- · sorry
-        -- · sorry
-        --#check StrongExchange
-        --have := le_of_not_lt gttl
-      sorry
-
-lemma le_of_subword  (hl : IsReduced (csOf W) l) (hl' : IsReduced (csOf W) l') (hsub : l <+ l') :
-  π l ≤ π l' := by
-    by_cases h : ∃ ll : expSet l l', ll.1 <:+: l'
-    · obtain ⟨ll, hll⟩ := h
-      exact ll.2.1 ▸ le_of_infix ll.2.2.1 hl' hll
-    · push_neg at h
-      generalize ldiff : l'.length - l.length = n
-      induction' n with n ih generalizing l
-      · rw [Sublist.eq_of_length hsub
-        (Nat.eq_iff_le_and_ge.2 ⟨Sublist.length_le hsub, Nat.sub_eq_zero_iff_le.1 ldiff⟩)]
-      · let ll := choose <| le_of_subword_aux hl hl' hsub h
-        let ll_spec := choose_spec <| le_of_subword_aux hl hl' hsub h
-        by_cases hll : ∀ lll : expSet ll l', ¬lll.1 <:+: l'
-        · have llle := ih ll_spec.1 ll_spec.2.1 hll (by
-            rw [ll_spec.2.2.2, Nat.sub_add_eq, ldiff, Nat.add_sub_self_right])
-          exact le_of_lt (lt_of_lt_of_le ll_spec.2.2.1 llle)
-        · push_neg at hll
-          let ll := (choose <| hll)
-          have := le_of_infix ll.2.2.1 hl' (choose_spec <| hll)
-          exact le_of_lt (lt_of_lt_of_le (ll.2.1.symm ▸ ll_spec.2.2.1) this)
-
-theorem SubwordProp : u ≤ v ↔ ∀ ω, v = π ω ∧ IsReduced (csOf W) ω → ∃ ω',
-  v = π ω' ∧ IsReduced (csOf W) ω' ∧ ω' <+ ω := sorry
-
+lemma le_of_subword (hl : IsReduced cs l) (hl' : IsReduced cs l') (hsub : l <+ l') :
+   toCoxeterGroup cs (π l) ≤ toCoxeterGroup cs (π l') := by
+    simp [toCoxeterGroup]
+    generalize h : l'.length = nl
+    revert l l'
+    induction' nl with n hn
+    · intro l l' _ _ hsub h
+      have : l.length = 0 := by have := List.Sublist.length_le hsub; linarith
+      have : l = [] := length_eq_zero.mp this
+      simp [this]
+      exact one_le cs
+    · intro l l' hl hl' hsub hll'
+      by_cases hlast : l.getLast? = l'.getLast?
+      · have := hn (isReduced_dropLast cs hl) (isReduced_dropLast cs hl')
+          (List.dropLast_sublist_dropLast hsub hlast) (by rw [length_dropLast, hll']; norm_num)
+        have l'nnil : l' ≠ [] := ne_nil_of_length_eq_add_one hll'
+        rcases (mul_simpleRefl_le cs (l'.getLast l'nnil) this) with hll | hrr
+        · sorry
+        · sorry
+      · have subdropLast := hn hl (isReduced_dropLast cs hl')
+          (List.sublist_dropLast hsub hlast) (by rw [length_dropLast, hll']; norm_num)
+        refine le_trans subdropLast (test cs hl')
 
 end SubwordProp
 
@@ -353,7 +302,7 @@ section otherProperty
 
 abbrev BruhatInterval := NonemptyInterval W
 
-def listInterval := {ω : List (indexOf W) | l <+ ω ∧ ω <+ l'}
+def listInterval := {ω : List B | l <+ ω ∧ ω <+ l'}
 
 instance BruhatInterval.finite (H : BruhatInterval) : Fintype H := by
   -- have := sorry

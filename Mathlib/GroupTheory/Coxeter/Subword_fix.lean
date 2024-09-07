@@ -248,7 +248,7 @@ lemma le_of_subword_aux (hl : IsReduced (csOf W) l) (hl' : IsReduced (csOf W) l'
       let imax := ((Finset.univ).image f).max' ne
       let lmax := choose <| Finset.mem_image.1 <| (Finset.max'_mem _ ne)
       have lltl' : l.length < l'.length := by
-        have := length_le_of_sublist hsub
+        have := List.Sublist.length_le hsub
         by_cases lt' : l.length < l'.length
         · exact lt'
         · have : l.length = l'.length := by linarith

@@ -2,10 +2,8 @@ import Mathlib.GroupTheory.Coxeter.inversion
 import Mathlib.Order.Interval.Basic
 import Init.Data.List.Lemmas
 
-
 open CoxeterSystem  List Relation
 open Classical (choose choose_spec)
-
 
 variable {B : Type}
 variable {W : Type} [Group W]
@@ -427,31 +425,43 @@ lemma le_of_subword (hl : IsReduced cs l) (hl' : IsReduced cs l') (hsub : l <+ l
 
 end SubwordProp
 
-section otherProperty
-#check Interval
-/--Bruhat interval is finite because of Subword property. -/
--- lemma Interval.finite : sorry := sorry
+section chainProp
 
-abbrev BruhatInterval := NonemptyInterval W
+def covby : cs.Group → cs.Group → Prop := fun u v => u < v ∧ ℓ u + 1 = ℓ v
 
-def listInterval := {ω : List B | l <+ ω ∧ ω <+ l'}
+lemma liftingProp {i : B} (hlt : u < v) (leq : ℓ u + 1 = ℓ v) (hllt : ℓ u < ℓ (u * s i))
+  (neq : u * s i ≠ v) : v < v * s i ∧ u * s i < v * s i := sorry
 
-instance BruhatInterval.finite (H : BruhatInterval) : Fintype H := by
-  -- have := sorry
-  have : 0 < Nat.card H := sorry
+theorem chainProp (h : u < v) : ∃ l : List W, Chain (covby cs) u (l.concat v) := sorry
 
-  sorry
+end chainProp
 
-lemma inv_le_iff_le : u⁻¹ ≤ v⁻¹ ↔ u ≤ v := by sorry
+-- section otherProperty
 
-theorem chainProp (hlt : u < v) : ∃ l : List W, Chain (· ⋖ ·) u (l.concat v) := sorry
+-- #check Interval
+-- /--Bruhat interval is finite because of Subword property. -/
+-- -- lemma Interval.finite : sorry := sorry
 
-lemma liftingProp {i : indexOf W} (hlt : u < v) (hirv : (csOf W).IsRightDescent v i)
-  (nhiru : ¬(csOf W).IsRightDescent u i) : u ≤ s i * v ∧ s i * u ≤ v := sorry
+-- abbrev BruhatInterval := NonemptyInterval W
 
-instance : IsDirected W (· ≤ ·) where
-  directed := sorry
+-- def listInterval := {ω : List B | l <+ ω ∧ ω <+ l'}
 
-end otherProperty
+-- instance BruhatInterval.finite (H : BruhatInterval) : Fintype H := by
+--   -- have := sorry
+--   have : 0 < Nat.card H := sorry
+
+--   sorry
+
+-- lemma inv_le_iff_le : u⁻¹ ≤ v⁻¹ ↔ u ≤ v := by sorry
+
+-- theorem chainProp (hlt : u < v) : ∃ l : List W, Chain (· ⋖ ·) u (l.concat v) := sorry
+
+-- lemma liftingProp {i : indexOf W} (hlt : u < v) (hirv : (csOf W).IsRightDescent v i)
+--   (nhiru : ¬(csOf W).IsRightDescent u i) : u ≤ s i * v ∧ s i * u ≤ v := sorry
+
+-- instance : IsDirected W (· ≤ ·) where
+--   directed := sorry
+
+-- end otherProperty
 
 end Bruhat

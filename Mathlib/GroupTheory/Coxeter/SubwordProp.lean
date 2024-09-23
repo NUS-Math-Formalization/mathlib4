@@ -1,14 +1,15 @@
-import Mathlib.GroupTheory.Coxeter.inversion
-import Mathlib.Order.Interval.Basic
-import Init.Data.List.Lemmas
-
-open CoxeterSystem  List Relation
-open Classical (choose choose_spec)
+import Mathlib.GroupTheory.Coxeter.Bruhat
+import Mathlib.Order.Grade
 
 variable {B : Type}
 variable {W : Type} [Group W]
 variable {M : CoxeterMatrix B} (cs : CoxeterSystem M W)
 variable {l : List B} {t : W}
+variable {u v : cs.Group}
+
+
+open CoxeterSystem  List Relation
+open Classical (choose choose_spec)
 
 local prefix:100 "s" => cs.simple
 local prefix:100 "π" => cs.wordProd
@@ -16,304 +17,9 @@ local prefix:100 "ℓ" => cs.length
 local prefix:100 "ris" => cs.rightInvSeq
 local prefix:100 "lis" => cs.leftInvSeq
 
-section StrongExchange
-
-@[simp]
-lemma nilIsReduced : cs.IsReduced [] := by simp [IsReduced]
-
-@[simp]
-lemma singletonIsReduced (h : l.length = 1) : cs.IsReduced l := by
-  simp [IsReduced, h, length_eq_one_iff,List.length_eq_one]
-  have := List.length_eq_one.1 h
-  obtain ⟨a, ha⟩ := this
-  exact ⟨a, by rw [ha]; simp⟩
-
-lemma StrongExchange {l : List B} (ht : cs.IsReflection t) : ℓ (π l * t) < ℓ π l →
-  ∃ l' : List B, π l' = π l * t ∧ ∃ i : Fin l.length, l' = l.eraseIdx i := by
-    sorry
-
-lemma StrongExchange' {l : List B} (ht : cs.IsReflection t) : ℓ (t * π l) < ℓ π l →
-  t ∈ lis l := sorry
-
-/-- If l is not a reduced word of w but a experssion, there exist a subword of l is also a
-  expression of w. -/
-lemma DeletionExchange {l : List B} (h : ¬IsReduced cs l) :
-  ∃ i : Fin l.length, ∃ j : Fin i, π l = π (l.eraseIdx j).eraseIdx i := sorry
-
-private lemma DeletionExchange_aux {l : List B} (h : ¬IsReduced cs l) :
-  ∃ l', l' <+ l ∧ π l' = π l ∧ l'.length + 2 = l.length := sorry
-
-/-- If l is not a reduced word of w but a experssion, there must exist a subword of l which
-  is reduced word of w. -/
-lemma DeletionExchange' {l : List B} (h : ¬IsReduced cs l) :
-  ∃ l' : List B, l' <+ l ∧ π l' = π l ∧ IsReduced cs l' := by
-  generalize hl : l.length = n
-  revert l h
-  induction' n using Nat.twoStepInduction with n h1 _ <;> intro l h llsucc
-  · have : l = [] := List.eq_nil_of_length_eq_zero llsucc
-    rw [this] at h
-    exact (h <| nilIsReduced cs).elim
-  · exact (h (singletonIsReduced cs llsucc)).elim
-  · obtain ⟨ll, hll⟩ := DeletionExchange_aux cs h
-    have lll : ll.length = n := by linarith
-    by_cases hh : IsReduced cs ll
-    · exact ⟨ll, ⟨hll.1, ⟨hll.2.1, hh⟩ ⟩⟩
-    · obtain ⟨ll', hll'⟩ := h1 hh lll
-      exact ⟨ll', ⟨hll'.1.trans hll.1, ⟨hll'.2.1.trans hll.2.1, hll'.2.2⟩ ⟩ ⟩
-
--- lemma llt_of_not_reduced {l : List B} {w : W} (hw : w = π l) (nred : ¬IsReduced cs l) :
---   ℓ w < l.length := sorry
-
-end StrongExchange
-
-abbrev CoxeterSystem.Group (_ : CoxeterSystem M W) := W
-
-variable {u v : cs.Group}
-
+set_option maxHeartbeats 250000
 namespace Bruhat
 
-section definition
-
-def lt_adj  : W → W → Prop := fun u v =>
-  (∃ t, cs.IsReflection t ∧ v = u * t) ∧ ℓ u < ℓ v
-
-def lt_adj' : W → W → Prop := fun u v =>
-  (∃ t, cs.IsReflection t ∧ v = t * u) ∧ ℓ u < ℓ v
-
-/-- `lt` is the transitive closure of `lt_adj` -/
-def lt := Relation.TransGen <| lt_adj (cs := cs)
-
-/-- `lt'` is the transitive closure of `lt_adj'` -/
-def lt' := Relation.TransGen <| lt_adj' (cs := cs)
-
-/-- The left Bruhat order is equivalent to the right Bruhat order since `lt_adj` is
-  equivalent to ` lt_adj' `-/
-lemma lt_adj_iff_lt_adj' : lt_adj cs u v ↔ lt_adj' cs u v := by
-  constructor <;> rintro ⟨⟨t, vut⟩, llt⟩
-  · have : cs.IsReflection (u * t * u⁻¹):=
-      IsReflection.conj vut.1 u
-    exact ⟨⟨u * t * u⁻¹, by simpa⟩, llt⟩
-  · have subt : cs.IsReflection (u⁻¹ * t * u) := by
-      have := IsReflection.conj vut.1 u⁻¹
-      simp at this
-      assumption
-    exact ⟨⟨u⁻¹ * t * u, ⟨subt, by group; exact vut.2⟩⟩, llt⟩
-
-/-- `le` is the reflexive transitive closure of `lt_adj ` -/
-def le := Relation.ReflTransGen <| lt_adj cs
-
-/-- `le'` is the reflexive transitive closure of `lt_adj' ` -/
-def le' := Relation.ReflTransGen <| lt_adj' cs
-
-lemma length_lt_of_lt (hlt : lt cs u v) : ℓ u < ℓ v :=
-  Relation.TransGen.trans_induction_on hlt (fun h => h.2) (fun _ _ h1 h2 => h1.trans h2)
-
-lemma length_le_of_le (hle : le cs u v) : ℓ u ≤ ℓ v := by
-  induction hle with
-  | refl           => rfl
-  | tail _ bltv ih => exact le_of_lt (lt_of_le_of_lt ih bltv.2)
-
-lemma le_of_lt (h : lt cs u v) : le cs u v := reflTransGen_iff_eq_or_transGen.2 (Or.inr h)
-
-lemma eq_of_le_of_length_ge (hle : le cs u v) (lle : ℓ v ≤ ℓ u) : u = v := by
-    have : ¬Relation.TransGen (lt_adj cs) u v := by
-      contrapose! lle; exact length_lt_of_lt cs lle
-    exact ((or_iff_left this).1 (Relation.reflTransGen_iff_eq_or_transGen.1 hle)).symm
-
-/-- The Bruhat order is the partial order on Coxeter group. -/
-instance : PartialOrder cs.Group where
-  lt               := lt cs
-  le               := le cs
-  le_refl          := fun _             => id Relation.ReflTransGen.refl
-  le_trans         := fun _ _ _ ha hb  => Relation.ReflTransGen.trans ha hb
-  le_antisymm      := fun a b ha hb => eq_of_le_of_length_ge cs ha (length_le_of_le cs hb)
-  lt_iff_le_not_le := by
-    intro a b;
-    constructor <;> intro h
-    · exact ⟨TransGen.to_reflTransGen h, fun hh => by
-        linarith [length_le_of_le cs hh, length_lt_of_lt cs h]⟩
-    · exact Or.elim (reflTransGen_iff_eq_or_transGen.1 h.1) (right := fun a ↦ a)
-        (fun hh => (False.elim <| h.2 <| reflTransGen_iff_eq_or_transGen.2 <| (Or.inl hh.symm)))
-
-local infix : 100 "<ₗ" => lt' cs
-local infix : 100 "≤ₗ" => le' cs
-
-lemma ne_one_of_gt (h : u < v) : v ≠ 1 := by
-  have : 0 < ℓ v := Nat.zero_lt_of_lt (length_lt_of_lt cs h)
-  contrapose! this
-  simpa
-
-/-- Bruhat.lt is equivalent to Bruhat.lt' -/
-lemma lt_iff_lt' : u < v ↔ u <ₗ v := by
-  constructor <;> intro h
-  · exact TransGen.mono (fun _ _ => (lt_adj_iff_lt_adj' cs).1) h
-  · exact TransGen.mono (fun _ _ => (lt_adj_iff_lt_adj' cs).2) h
-
-lemma le'_iff_lt'_or_eq : u ≤ₗ v ↔ u <ₗ v ∨ u = v := by
-  have := @reflTransGen_iff_eq_or_transGen _ (lt_adj' cs) u v
-  tauto
-
-/-- Bruhat.le is equivalent to Bruhat.le' -/
-lemma le_iff_le' : u ≤ v ↔ u ≤ₗ v := by
-  constructor <;> intro h
-  · have := le_iff_lt_or_eq.1 h
-    rw [le'_iff_lt'_or_eq]
-    exact Or.elim this (fun h1 => Or.inl <| (lt_iff_lt' cs).1 h1) (fun h2 => Or.inr h2)
-  · exact Or.elim ((le'_iff_lt'_or_eq cs).1 h) (fun h1 => (le_of_lt cs) <| (lt_iff_lt' cs).2 h1)
-      (fun h2 => reflTransGen_iff_eq_or_transGen.2 (Or.inl h2.symm))
-
-lemma lt_of_le_of_length_lt : u ≤ v → ℓ u < ℓ v → u < v := fun h1 h2 =>
-  (or_iff_right (by contrapose! h2; rw [h2])).1 <| reflTransGen_iff_eq_or_transGen.1 h1
-
-/--If $t$ is the reflection of $W$, then $u < ut$ iff $\ell (u) < \ell (ut) $ -/
-lemma lt_reflection_mul_iff_length_lt {t : W} (u : cs.Group) (ht : cs.IsReflection t) :
-  u < u * t ↔ ℓ u < ℓ (u * t) := by
-    constructor <;> intro h
-    · exact length_lt_of_lt cs h
-    · exact (Relation.transGen_iff (lt_adj cs) u (u * t)).2 (Or.inl ⟨⟨t, ⟨ht, rfl⟩⟩, h⟩)
-
-lemma reflection_mul_lt_iff_length_lt {t : W} (u : cs.Group) (ht : cs.IsReflection t) :
-  u * t < u ↔ cs.IsRightInversion u t:= by
-    constructor <;> intro h
-    · exact ⟨ht, length_lt_of_lt cs h⟩
-    · exact (Relation.transGen_iff (lt_adj cs) (u * t) u).2
-        (Or.inl (⟨⟨t, ⟨ht, by rw [mul_assoc, IsReflection.mul_self ht, mul_one]⟩ ⟩, h.2⟩))
-
-lemma lt_simple_mul_iff (i : B) (u : cs.Group) : u < u * s i ↔ ℓ u + 1 = ℓ (u * s i) := by
-  convert lt_reflection_mul_iff_length_lt cs u (cs.isReflection_simple i) using 1
-  constructor <;> intro h
-  · linarith
-  · have := cs.length_mul_simple u i
-    cases this with
-    | inl hl => exact hl.symm
-    | inr hr => rw [←hr] at h; linarith
-
-lemma simple_mul_lt_iff (i : B) (u : cs.Group) : u * s i < u ↔ cs.IsRightDescent u i := by
-  convert lt_simple_mul_iff cs i (u * s i) using 1
-  · simp
-  · rw [isRightDescent_iff]; simp
-
-lemma mul_lt_of_IsRightInversion {t : W} (u : cs.Group)
-  (ht : cs.IsRightInversion u t) : u * t < u :=
-    TransGen.single ⟨⟨t, ⟨ht.1, by rw [mul_assoc, IsReflection.mul_self ht.1, mul_one]⟩⟩, ht.2⟩
-
-lemma mul_lt'_of_IsLeftInversion {t : W} (ht : cs.IsLeftInversion u t) : (t * u) <ₗ u :=
-  TransGen.single ⟨⟨t, ⟨ht.1, by rw [←mul_assoc, IsReflection.mul_self ht.1, one_mul]⟩⟩, ht.2⟩
-
-
-/-- $\forall u \in W$, if $ u \ne 1$, then $1 < u$ -/
-lemma one_lt_of_ne_one (h : u ≠ 1) : 1 < u := by
-  generalize h1 : ℓ u = n
-  revert u
-  induction' n with n ih
-  · intro u h hu
-    exact False.elim <| h <| cs.length_eq_zero_iff.1 <| hu
-  · intro u h hu
-    by_cases hh : n = 0
-    · rw [hh] at hu
-      obtain ⟨i, hi⟩ := (cs.length_eq_one_iff).1 hu
-      exact TransGen.single ⟨ ⟨s i, ⟨cs.isReflection_simple i, by rw [hi,one_mul]⟩ ⟩,
-      by simp;linarith⟩
-    · obtain ⟨i, hi⟩ := exists_rightDescent_of_ne_one cs h
-      have h1  : ℓ (u * s i) = n := by linarith [cs.isRightDescent_iff.1 hi]
-      have ne1 : u * s i ≠ 1 := by
-        have := cs.length_mul_ge_length_sub_length u (s i)
-        simp only [length_simple] at this
-        apply (Iff.not cs.length_eq_zero_iff).1
-        intro h
-        rw [h1] at h
-        tauto
-      have := mul_lt_of_IsRightInversion cs u
-        ((cs.isRightInversion_simple_iff_isRightDescent u i).2 hi)
-      exact (ih ne1 h1).trans this
-
-/-- $\forall u \in W, 1 \leq u$  -/
-lemma one_le : 1 ≤ u := by
-  by_cases h : u = 1
-  · rw [h]
-  · exact le_of_lt cs (one_lt_of_ne_one cs h)
-
-lemma mul_simpleRefl_lt_adj {b v : cs.Group} (i : B) (h : lt_adj cs b v) :
-  b * (s i) ≤ v ∨ b * (s i) ≤ v * (s i) := by
-    rcases h.1 with ⟨t,h1⟩
-    by_cases h2 : s i = t
-    · rw [←h2] at h1; rw [h1.2]; exact Or.inl (le_refl _)
-    · have blev := (le_of_lt cs (TransGen.single h))
-      by_cases h3 : cs.IsRightInversion b (s i)
-      · have h31 : b * cs.simple i < b := mul_lt_of_IsRightInversion cs _ h3
-        exact Or.inl (le_trans (le_of_lt cs h31) blev)
-      · right
-        let t' : cs.Group := s i * t * s i
-        have heq : b * s i * t' = b * t * s i := by
-          simp [t']; rw [mul_assoc]; group; simp
-        have IsReflt': cs.IsReflection t' := by
-          have := (CoxeterSystem.isReflection_conj_iff cs (s i) t).2 h1.1
-          rwa [inv_simple] at this
-        have lbslvs : ℓ (b * s i) < ℓ (v * s i) := by
-          by_contra! hh
-          by_cases hlt : ℓ (v * s i) < ℓ (b * s i)
-          · rw [h1.2, ←heq] at hlt
-            let  redword_b := choose <| cs.exists_reduced_word' b
-            have redword_bspec := choose_spec (cs.exists_reduced_word' b)
-            let redword_bsi := redword_b ++ [i]
-            have redword_bsieq : π redword_bsi = b * s i := by
-              simp_rw [redword_bsi, wordProd_append, wordProd_singleton]; rw [redword_bspec.2]
-            rw [←redword_bsieq] at hlt
-            rcases StrongExchange cs IsReflt' hlt with ⟨ll', ⟨heq', ⟨i', hi'⟩ ⟩ ⟩
-            rw [redword_bsieq, heq, ←h1.2] at heq'
-            by_cases hdel_id : i' = redword_bsi.length - 1 <;> simp [redword_bsi] at *
-            · have : ll' = redword_b := by
-                rw [hi', hdel_id, eraseIdx_append_of_length_le (le_of_eq rfl)]
-                simp
-              rw [this, ←redword_bspec.2, h1.2, mul_assoc] at heq'
-              have : s i = t := by
-                nth_rw 1 [←mul_one b] at heq'
-                have := mul_left_cancel heq'
-                rw [←simple_sq cs i, pow_two] at this
-                exact mul_right_cancel this
-              exact h2 this
-            · have hi'lt : i'.1 < redword_b.length := by
-                push_neg at hdel_id
-                have := Fin.is_lt i'
-                simp [redword_bsi] at this
-                have : i'.1 ≤ redword_b.length  := Nat.le_of_lt_succ this
-                exact Nat.lt_of_le_of_ne this hdel_id
-              rw [List.eraseIdx_append_of_lt_length hi'lt _] at hi'
-              rw [hi', wordProd_append, wordProd_singleton] at heq'
-              have : cs.wordProd (redword_b.eraseIdx ↑i') = v := by
-                rw [←mul_one v, ←simple_sq cs i, pow_two, ←mul_assoc, ←heq']; simp
-              have hcontra := cs.length_wordProd_le (redword_b.eraseIdx i')
-              rw [this, length_eraseIdx hi'lt] at hcontra
-              have hcontra' : ℓ b < ℓ v := h.2
-              rw [←redword_bspec.1, ←redword_bspec.2] at hcontra
-              have : ℓ v < ℓ v  := by
-                calc
-                  _ ≤ ℓ b - 1 := hcontra
-                  _ ≤ ℓ v - 1 := Nat.sub_le_sub_right (_root_.le_of_lt h.2) 1
-                  _ < ℓ v :=Nat.sub_one_lt_of_lt hcontra'
-              linarith
-          · have : ℓ (v * s i) = ℓ (b * s i) := by push_neg at hlt; linarith
-            rw [h1.2, ←heq] at this
-            exact CoxeterSystem.IsReflection.length_mul_left_ne IsReflt' (b * s i) this
-        have : lt_adj cs (b * s i) (v * s i) := by
-          rw [←h1.2] at heq
-          exact ⟨⟨t', ⟨IsReflt', heq.symm⟩ ⟩, lbslvs⟩
-        exact le_of_lt cs (TransGen.single this)
-
-lemma mul_simpleRefl_le_of_le (i : B) (h : u ≤ v) : u * (s i) ≤ v ∨ u * (s i) ≤ v * (s i) := by
-  induction h with
-  | refl => exact Or.inr (le_refl _)
-  | @tail b v hub hbv ih =>
-    have blev := (le_of_lt cs (TransGen.single hbv ))
-    cases mul_simpleRefl_lt_adj cs i hbv with
-    | inl hl => cases ih with
-      | inl hll => exact Or.inl (le_trans hll blev)
-      | inr hrr => exact Or.inl (le_trans hrr hl)
-    | inr hr => cases ih with
-      | inl hll => exact Or.inl (le_trans hll blev)
-      | inr hrr => exact Or.inr (le_trans hrr hr)
-
-end definition
 
 section SubwordProp
 
@@ -356,84 +62,6 @@ theorem subword_of_le (veq : v = π ω) (wred : cs.IsReduced ω) : u ≤ v →
       have : u < v := Relation.TransGen.tail' hab hbc
       exact subword_of_lt cs veq this
 
-@[simp]
-def toCoxeterGroup : W → cs.Group := id
-
-lemma List.dropLast_sublist_dropLast {α : Type} {l l' : List α} (hsub : l <+ l')
-  : l.dropLast <+ l'.dropLast := by
-    revert l
-    induction' l' with a ll' ih
-    · intro _ hsub ; simp at *; rw [hsub]; simp
-    · intro l hsub
-      cases sublist_cons_iff.1 hsub with
-      | inl hl =>
-        by_cases ll'nil : ll' = []
-        · simp [ll'nil] at *; simp [hl]
-        · rw [List.dropLast_cons_of_ne_nil ll'nil]
-          exact (ih hl).trans (sublist_cons_self a _)
-      | inr hr =>
-        rcases hr with ⟨r,hr⟩
-        by_cases rnil : r = []
-        · rw [rnil] at hr; rw [hr.1]; simp
-        · have ll'nnil : ll' ≠ [] := by
-            contrapose! rnil; rw [rnil] at hr; exact sublist_nil.1 hr.2
-          have := ih hr.2
-          rw [hr.1, dropLast_cons_of_ne_nil rnil, dropLast_cons_of_ne_nil ll'nnil]
-          exact Sublist.cons₂ a this
-
-lemma List.sublist_dropLast {α : Type} {l l' : List α} (hsub : l <+ l')
-  (hlast : ¬l.getLast? = l'.getLast?) : l <+ l'.dropLast := by
-    revert l
-    induction' l' with a ll' hll' <;> intro l hsub hlast
-    · simp; exact sublist_nil.1 hsub
-    · by_cases ll'nil : ll' = []
-      · simp [ll'nil] at *
-        exact Or.elim hsub (fun hl => hl) (fun hr => by simp [hr] at hlast)
-      · rw [getLast?_eq_getLast (a :: ll') (by simp), getLast_cons ll'nil,
-          ←getLast?_eq_getLast _ ll'nil] at hlast
-        cases sublist_cons_iff.1 hsub with
-        | inl hl => exact (hll' hl hlast).trans (by simp [dropLast_cons_of_ne_nil ll'nil])
-        | inr hr =>
-          rcases hr with ⟨r, hr⟩
-          by_cases rnil : r = []
-          · simp [rnil] at *; rw [hr, dropLast_cons_of_ne_nil ll'nil]; simp
-          · rw [hr.1, getLast?_eq_getLast (a :: r) (by simp), getLast_cons rnil,
-              ←getLast?_eq_getLast _ rnil] at hlast;
-            rw [hr.1, dropLast_cons_of_ne_nil ll'nil]
-            exact Sublist.cons₂ a (hll' hr.2 hlast)
-
-lemma isReduced_dropLast {ω : List B} (hω : cs.IsReduced ω) :
-  cs.IsReduced ω.dropLast := by
-  rw [dropLast_eq_take]
-  exact isReduced_take cs hω (ω.length - 1)
-
-lemma dropLast_lt {l : List B} (h : cs.IsReduced l) (tri : l ≠ []) :
-  toCoxeterGroup cs (π l.dropLast) < toCoxeterGroup cs (π l) := by
-    simp [toCoxeterGroup]
-    have : ℓ (π l.dropLast) < ℓ (π l) := by
-        rw [h, dropLast_eq_take, cs.isReduced_take h, length_take]; simp; exact length_pos.2 tri
-    nth_rw 2 [←dropLast_concat_getLast tri] at *
-    rw [wordProd_append, wordProd_singleton] at *
-    exact ((lt_reflection_mul_iff_length_lt cs _ (cs.isReflection_simple (l.getLast tri))).2 this)
-
-lemma dropLast_le {l : List B} (h : cs.IsReduced l) :
-  toCoxeterGroup cs (π l.dropLast) ≤ toCoxeterGroup cs (π l) := by
-    simp [toCoxeterGroup]
-    by_cases tri : l = []
-    · simp [tri]
-    · exact _root_.le_of_lt (dropLast_lt cs h tri)
-
-lemma wordProd_dropLast? {i : B} {l : List B} (h1 : l.getLast? = some i) :
-  π l.dropLast = π l * s i := by
-    nth_rw 2 [←List.dropLast_append_getLast? i h1 ]
-    rw [wordProd_append]
-    simp
-
-lemma wordProd_dropLast (h : l ≠ []) :
-  π l.dropLast = π l * s (l.getLast h):= by
-    nth_rw 2 [←dropLast_append_getLast h]
-    rw [wordProd_append]; simp
-
 lemma le_of_subword (hl' : IsReduced cs l') (hsub : l <+ l') :
    toCoxeterGroup cs (π l) ≤ toCoxeterGroup cs (π l') := by
     simp [toCoxeterGroup]
@@ -445,7 +73,6 @@ lemma le_of_subword (hl' : IsReduced cs l') (hsub : l <+ l') :
         rw [List.length_eq_zero.1 h] at hsub
         exact eq_nil_of_sublist_nil hsub
       simp [this]
-      exact one_le cs
     · intro l l' hl' hsub hll'
       by_cases hlast : l.getLast? = l'.getLast?
       · have := hn (isReduced_dropLast cs hl')
@@ -471,6 +98,7 @@ lemma le_of_subword (hl' : IsReduced cs l') (hsub : l <+ l') :
 
 end SubwordProp
 
+
 lemma inv_le_inv_of_le (hlt : u ≤ v) : u⁻¹ ≤ v⁻¹ := by
   rcases exists_reduced_word' cs v with ⟨lv, hlv⟩
   rcases subword_of_le cs hlv.2 hlv.1 hlt with ⟨lu, hlu⟩
@@ -491,47 +119,13 @@ lemma mul_reflection {t : W} (u : cs.Group) (ht : cs.IsReflection t) : u < u * t
   · have := IsReflection.length_mul_left_ne ht u
     push_neg at h
     have isRis : cs.IsRightInversion u t := ⟨ht, Nat.lt_of_le_of_ne h this⟩
-    exact Or.inr <| mul_lt_of_IsRightInversion cs u isRis
+    exact Or.inr <| mul_lt_of_IsRightInversion cs isRis
 
 lemma reflection_mul {t : W} (ht : cs.IsReflection t) : u < t * u ∨ u > t * u := by
   convert mul_reflection cs u⁻¹ ht using 1
   · convert (inv_lt_inv_iff cs u (t * u)).symm using 2; simp [IsReflection.inv ht]
   · have := (inv_lt_inv_iff cs (t * u) u)
     simp; rw [←this]; simp [IsReflection.inv ht]
-
-lemma isRightDescent_iff_exist_reduced_word_getLast_eq {i : B} : cs.IsRightDescent u i ↔
-  ∃ l, cs.IsReduced l ∧ u = π l ∧ l.getLast? = some i := by
-    constructor <;> intro h
-    · rcases cs.exists_reduced_word' (u * s i) with ⟨ll, hll⟩
-      have : u = π ll * s i := by rw [←hll.2]; simp
-      rw [←wordProd_singleton, ←wordProd_append] at this
-      have isRed : cs.IsReduced (ll ++ [i]) := by
-        simp [IsReduced]
-        have h1: ℓ (u * s i) = ll.length := by rw [←hll.1, hll.2]
-        rw [←this, ←h1]
-        exact (cs.isRightDescent_iff.1 h).symm
-      exact ⟨ll ++ [i], ⟨isRed, this, by simp⟩ ⟩
-    · obtain ⟨l, hl⟩ := h
-      have leq : l = l.dropLast ++ [i] := (dropLast_append_getLast? i (hl.2.2)).symm
-      have : ℓ (u * s i) < ℓ u := by
-        rw [hl.2.1]; nth_rw 1 [leq, wordProd_append, mul_assoc]; simp
-        rw [isReduced_dropLast cs hl.1, hl.1, length_dropLast]
-        have : l ≠ [] := by rw [leq]; simp
-        exact Nat.sub_one_lt_of_lt (length_pos.2 this)
-      assumption
-
-lemma not_isRightDescent_iff_reduced_word_getLast_not_eq {i : B} : ¬ cs.IsRightDescent u i ↔
-  ∀ l, cs.IsReduced l ∧ u = π l → l.getLast? ≠ some i := by
-    convert Iff.not (isRightDescent_iff_exist_reduced_word_getLast_eq cs) using 1
-    simp
-
-lemma length_mul_simple_ne_of_parity_ne {u v : W} (w : W) (h : ℓ u % 2 ≠ ℓ v % 2)
-  : ℓ (u * w) ≠ ℓ (v * w) := by
-    contrapose! h
-    have : ℓ (u * w) % 2 = ℓ (v * w) % 2 := by rw [h]
-    rw [←mul_one u, ←mul_one v, ←mul_inv_cancel w, ←mul_assoc, ←mul_assoc]
-    rw [length_mul_mod_two cs (u * w), length_mul_mod_two cs (v * w)]
-    rw [Nat.add_mod, Nat.add_mod (ℓ (v * w)), this]
 
 lemma liftingProp {i : B} (hlt : u < v) (h1 : cs.IsRightDescent v i) (h2 : ¬ cs.IsRightDescent u i)
   : u ≤ v * s i ∧ u * s i ≤ v := by
@@ -551,7 +145,7 @@ lemma liftingProp {i : B} (hlt : u < v) (h1 : cs.IsRightDescent v i) (h2 : ¬ cs
 
 lemma liftingProp' {i : B} (hlt : u < v) (leq : ℓ u + 1 = ℓ v) (hllt : ¬ cs.IsRightDescent u i)
   (neq : u * s i ≠ v) : v < v * s i ∧ u * s i < v * s i := by
-    have := mul_simpleRefl_le_of_le cs i (le_of_lt cs hlt)
+    have := mul_simpleRefl_le_of_le cs i (le_of_lt hlt)
     have lfalse : ¬ u * s i ≤ v := by
       rw [←cs.not_isRightDescent_iff.1 hllt] at leq
       exact fun h => neq (eq_of_le_of_length_ge cs h (by linarith))
@@ -564,53 +158,50 @@ lemma liftingProp' {i : B} (hlt : u < v) (leq : ℓ u + 1 = ℓ v) (hllt : ¬ cs
         _ < _ := length_lt_of_lt cs right
     exact ⟨(lt_reflection_mul_iff_length_lt cs _ (cs.isReflection_simple i)).2 llt, right⟩
 
-section trans
-
-def IsLeftInsertion (w : W) (t : W) := cs.IsReflection t ∧ ℓ w < ℓ (t * w)
-
-def leftIRefl (i : B) (l : List B) (n : Nat) := (l.take n) ++ [i] ++ (l.take n).reverse
-
-lemma leftIReflisReflection (i : B) (l : List B) (n : Nat) :
-  cs.IsReflection <| π (leftIRefl i l n) := by
-    use π (l.take n), i
-    simp [leftIRefl, wordProd_append, wordProd_cons]
-    group
-
-lemma List.insertNth_append {α : Type} (i : α) (l l' : List α) (n : Nat) (hn : n ≤ l.length) :
-  (l ++ l').insertNth n i = l.insertNth n i ++ l' := by
-    induction' l with a tail ih
-    · sorry
-    · sorry
-
-lemma List.insertNth_eq {α : Type} (i : α) (l : List α) (n : Nat) (hn : n ≤ l.length) :
-  l.insertNth n i = (l.take n) ++ [i] ++ (l.drop n) := by
-    have : n = (l.take n).length := by simp [hn]
-    nth_rw 1 [←take_append_drop n l, this, List.insertNth_append (hn := by simp)]
-    rw [List.insertNth_length_self]
-
-lemma leftIRefl_mul (i : B) (l : List B) (n : Nat) (hn : n ≤ l.length):
-  π (leftIRefl i l n) * π l = π (l.insertNth n i) := by
-    simp [leftIRefl, wordProd_append, wordProd_cons]
-    nth_rw 3 [←take_append_drop n l]; rw [cs.wordProd_append]
-    group
-    rw [List.insertNth_eq i l n hn]
-    simp [wordProd_append, wordProd_cons]
-    group
-
-end trans
-
 section chainProp
 
 @[simp]
 def covby : cs.Group → cs.Group → Prop := fun u v => u < v ∧ ℓ u + 1 = ℓ v
 
-lemma covby_iff : u ⋖ v ↔ covby cs u v := by
+lemma covby.WellFounded : WellFounded (covby cs) := by
+  refine WellFounded.intro ?h
+  intro a
+  generalize ha : ℓ a = n
+  revert a
+  induction' n with n ih <;> intro a ha
+  · apply Acc.intro
+    intro y hy; simp [covby, ha] at hy;
+  · exact Acc.intro (r := covby cs) a (fun y hy => ih y (by simp [covby, ha] at hy; exact hy.2))
+
+theorem chainProp (h : u < v) : ∃ p : List cs.Group,
+  (Chain' (covby cs) p ∧ p.head? = some u ∧ p.getLast? = some v) := by sorry
+
+lemma length_chain {l : List cs.Group} {n : ℕ} (h : u < v) (hl : Chain' (covby cs) l)
+  (h1 : l.head? = some u) (h2 : l.getLast? = some v) :
+   l.length = ℓ v - ℓ u + 1 := by
+  generalize hn : ℓ v - ℓ u = n
+  revert u v l
+  induction' n with n ih
+  · sorry
+  · sorry
+
+lemma covby_iff (u v : cs.Group): u ⋖ v ↔ covby cs u v := by
   simp [CovBy, covby]
   intro hlt
   constructor <;> intro h
   · contrapose! h
+    obtain ⟨p, hp⟩ := chainProp cs hlt
+    have : 2 <  p.length := sorry
+    use p[1]
     sorry
-  · sorry
+  · intro c hc
+    replace hc := h ▸ Nat.add_one_le_of_lt <| length_lt_of_lt cs hc
+    exact fun h => (not_le_of_lt (length_lt_of_lt cs h) hc)
+
+noncomputable instance : GradeOrder ℕ cs.Group where
+  grade := cs.length
+  grade_strictMono := fun _ _ h => length_lt_of_lt cs h
+  covBy_grade := fun _ _ h => (by rw [covby_iff, covby ] at h; simp [←h.2])
 
 lemma chainaux {i : B} (h : u < v) (h1 : cs.IsRightDescent v i) (h2 : ¬ cs.IsRightDescent u i) :
     u ≤ v * s i := by
@@ -624,78 +215,163 @@ lemma chainaux {i : B} (h : u < v) (h1 : cs.IsRightDescent v i) (h2 : ¬ cs.IsRi
       simp at this
       rwa [hl'.1.2, hl.2.1, ←wordProd_dropLast? cs hl.2.2]
 
--- lemma chainaux' {L : List cs.Group} {i : B} (h : Chain' (covby cs) L) (hL : 1 < L.length)
---   (h1 : (L.head sorry) < (L.head (by apply?))* s i) (h2 : L.getLast * s i < L.getLast) :
---     ∃ ii, Chain' L := sorry
-
-theorem chainProp (h : u < v) : ∃ l : List cs.Group, Chain (covby cs) u (l.concat v) := by
+theorem chainProp' (h : u < v) : ∃ p : List cs.Group,
+  (Chain' (covby cs) p ∧ p.head? = some u ∧ p.getLast? = some v) := by
   generalize hn : ℓ u + ℓ v = n
   revert u v
   induction' n with n ih
-  · sorry
-  · intro u v hlt hleq
+  · intro u v h1 h2
+    have : ℓ v = 0 := by linarith
+    have h1 := length_lt_of_lt cs h1; rw [this] at h1; tauto
+  · intro u v hlt h0
     have lvpos : 0 < ℓ v := Nat.zero_lt_of_lt (length_lt_of_lt cs hlt)
     rcases cs.exists_rightDescent_of_ne_one (ne_one_of_gt cs hlt) with ⟨i, hi⟩
     rcases (isRightDescent_iff_exist_reduced_word_getLast_eq cs).1 hi with ⟨l1, h1⟩
-    rcases subword_of_le cs h1.2.1 h1.1 (le_of_lt cs hlt) with ⟨l2, h2⟩
+    rcases subword_of_le cs h1.2.1 h1.1 (le_of_lt hlt) with ⟨l2, h2⟩
     by_cases h : u < u * s i
     · have : ℓ (u * s i) = ℓ u + 1 := ((lt_simple_mul_iff cs i u).1 h).symm
       have := chainaux cs hlt hi (cs.not_isRightDescent_iff.2 this)
       by_cases h3 : u = v * s i
       · have llu : ℓ u + 1 = ℓ v := by rw [←cs.isRightDescent_iff.1 hi, h3]
-        exact ⟨[], by simp; exact ⟨hlt, llu⟩⟩
+        exact ⟨[u, v], by simp [covby]; exact ⟨hlt, llu⟩⟩
       · have ultvs : u < v * s i := lt_of_le_of_ne this h3
         have lcond : ℓ u + ℓ (v * s i) = n := by
           have := (cs.isRightDescent_iff).1 hi
           calc
             _ = ℓ u + (ℓ (v * s i) + 1 - 1) := rfl
             _ = ℓ u + ℓ v - 1 := by rw [this, Nat.add_sub_assoc lvpos]
-            _ = _ := by rw [hleq]; rfl
+            _ = _ := by rw [h0]; rfl
         obtain ⟨l3, hl3⟩ := ih ultvs lcond
-        use (l3.concat (v * s i))
-        simp at *
-        exact ⟨hl3, ⟨mul_lt_of_IsRightInversion cs v ⟨cs.isReflection_simple i, hi⟩,
-          cs.isRightDescent_iff.1 hi⟩⟩
-    · have h' : u * s i < u :=
+        use (l3.concat v)
+        simp [covby, List.chain'_append] at *
+        exact ⟨⟨hl3.1, by
+          intro x hx; simp [hl3.2.2] at hx; rw [←hx];
+          exact ⟨(simple_mul_lt_iff cs i v).2 hi, cs.isRightDescent_iff.1 hi⟩⟩, Or.inl hl3.2.1⟩
+    · replace h : u * s i < u :=
         (or_iff_right h ).1 <| mul_reflection cs u (cs.isReflection_simple i)
-      have une1 : u ≠ 1 := sorry
-      have h3 : ℓ (u * s i) = ℓ u - 1 := sorry
-      have h4 : 1 ≤ ℓ u := Nat.one_le_of_lt (length_lt_of_lt cs h')
-      have lcond : ℓ (u * s i) + ℓ v = n := by rw [h3, ←Nat.sub_add_comm h4, hleq]; simp
-      obtain ⟨l3, hl3⟩ := ih (h'.trans hlt) lcond
-      have l3nnil : l3 ≠ [] := by
-        contrapose! hl3
-        intro temp
-        simp [hl3] at temp
-        have h5 := temp.2
-        rw [h3, ←Nat.sub_add_comm h4] at h5
-        simp at h5
-        have : ℓ u < ℓ v := length_lt_of_lt cs hlt
-        rw [h5] at this; linarith
-      let l4 := (u * s i) :: l3.concat v
-      have ll4 : 1 < l4.length := sorry
-      set p : Fin l4.length → Prop := fun ind => (lt cs ((l4.get ind) * s i) (l4.get ind))
+      have h3 : ℓ (u * s i) = ℓ u - 1 :=
+        Nat.eq_sub_of_add_eq <| cs.isRightDescent_iff.1 ((simple_mul_lt_iff cs i u).1 h)
+      have h4 : 1 ≤ ℓ u := Nat.one_le_of_lt (length_lt_of_lt cs h)
+      have lcond : ℓ (u * s i) + ℓ v = n := by rw [h3, ←Nat.sub_add_comm h4, h0]; simp
+      obtain ⟨l3, hl3⟩ := ih (h.trans hlt) lcond
+      set p : Fin l3.length → Prop := fun ind => (l3[ind] * s i < l3[ind])
       classical
+      obtain ⟨l4, hl4⟩ := List.getLast?_eq_some_iff.1 hl3.2.2
+      have : l4.length < l3.length := by rw [hl4, length_append, length_singleton]; norm_num
+      obtain ⟨l5, hl5⟩ := List.head?_eq_some_iff.1 hl3.2.1
       let ind := Fin.find p
-      have hind : ind.isSome := by
-        apply Fin.isSome_find_iff.2
-        use ⟨l4.length - 1, Nat.sub_one_lt_of_lt ll4⟩
-        simp_rw [p]; simp [l4]
-        exact mul_lt_of_IsRightInversion cs v ⟨cs.isReflection_simple i, hi⟩
-      let ii := Option.get ind hind
-      have hii : ii ∈ Fin.find p := by simp [ii]
-      have ii_spec := Fin.find_spec p hii
-      have iipos : ⟨0, Nat.zero_lt_of_lt ll4⟩ < ii := by sorry
-      have : ∀ j < ii, toCoxeterGroup cs (l4.get j) < toCoxeterGroup cs ((l4.get j) * s i) := by
-        simp; sorry
-      have : ∀ j, ⟨0, Nat.zero_lt_of_lt ll4⟩ < j → j < ii →
-        (l4.get ⟨j - 1, tsub_lt_of_lt j.2⟩) * s i < (l4.get j) * s i := sorry
-      have heq : l4.get ⟨ii - 1, tsub_lt_of_lt ii.2⟩ * (s i) = l4.get ii := sorry
-      set l5 := (l4.map (· * s i)).take ii ++ l4.drop ii with hl5
-      have : Chain' (covby cs) l5 := sorry
-      by_cases iilast : ii = l4.length - 1
-      · sorry
-      · sorry
+      have h5 : ind.isSome := by
+        rw [Fin.isSome_find_iff]
+        use ⟨l4.length, this⟩
+        simp [p]; rw [show l3[l4.length] = v by simp [hl4]]
+        exact mul_lt_of_IsRightInversion cs ⟨cs.isReflection_simple i, hi⟩
+      have h6 : (0 : ℕ) < ind.get h5 := by
+        by_contra!
+        have : (ind.get h5).1 = 0 := by linarith
+        have tmp : ind = some ⟨0, by linarith⟩ :=
+          Option.eq_some_iff_get_eq.2 ⟨h5, Fin.ext_iff.2 this⟩
+        have : ¬p ⟨0, by linarith⟩ := by simp [p, hl5]; exact (simple_mul_iff cs i u).1 h
+        exact this (Fin.find_eq_some_iff.1 tmp).1
+      set ii := ind.get h5 with hii
+      have hii' : ind = some ii := by simp [hii]
+      have h7 : ∀ j, j < ii → l3[j] < l3[j] * s i := by
+        intro j hj; by_contra!; replace this : l3[j] * s i < l3[j] :=
+          (or_iff_left this).1 (simple_mul cs i l3[j])
+        have :=  (Fin.find_eq_some_iff.1 hii').2 j this
+        exact (not_le_of_lt hj) this
+      have aux8 : ii - 1 < l3.length := (Nat.sub_one_lt (show ii.1 ≠ 0 by linarith)).trans ii.2
+      have h8 : l3[ii] = l3[ii.1 - 1] * s i := by
+        simp; have := List.chain'_iff_get.1 hl3.1 (ii - 1)
+          (Nat.sub_lt_sub_right (Nat.add_one_le_of_lt h6) ii.is_lt )
+        simp [covby, (Nat.add_one_le_of_lt h6)] at this
+        by_contra! h8
+        have h9 : l3[ii.1 - 1] < l3[ii.1 - 1] * s i := h7 ⟨ii - 1, aux8⟩ (by simp [Fin.lt_def, h6])
+        have h10 := (liftingProp' cs this.1 this.2
+          (cs.not_isRightDescent_iff.2 ((lt_simple_mul_iff cs i _).1 h9 ).symm) h8.symm).1
+        have := (Fin.find_eq_some_iff.1 hii').1; simp [p] at this
+        exact (simple_mul_iff cs i _).1 this h10
+      have h9 : ∀ j < ii, 0 < j.1 → l3[j.1 - 1] * s i < l3[j] * s i := by
+        intro j hj hj'
+        have h1 : j.1 - 1 < l3.length - 1 := (lt_of_lt_of_le (show j.1 - 1 < ii.1 by
+          exact lt_of_le_of_lt (Nat.sub_le j.1 1) (Fin.lt_def.1 hj)) (Nat.le_sub_one_of_lt ii.2))
+        have := List.chain'_iff_get.1 hl3.1 (j.1 - 1) h1
+        simp [covby, Nat.add_one_le_iff.2 hj'] at this
+        have h3 := h7 ⟨j.1 - 1, h1.trans (Nat.sub_one_lt (Nat.not_eq_zero_of_lt aux8))⟩
+            (Fin.lt_def.2 <| lt_of_le_of_lt (Nat.sub_le j.1 1) (Fin.lt_def.1 hj))
+        have h2 : l3[j.1 - 1] * s i ≠ l3[j] := by
+          intro h11; have := h7 j hj; simp [←h11] at this
+          simp at h3; exact lt_asymm this h3
+        have := liftingProp' cs this.1 this.2
+          (by simp [IsRightDescent]; exact _root_.le_of_lt (length_lt_of_lt cs h3)) h2
+        exact this.2
+      use (l3.take ii.1).map (· * s i) ++ (l3.drop (ii.1 + 1))
+      constructor
+      · simp  [ List.chain'_iff_get]
+        intro j hj
+        replace hj : j < l3.length - 2 := by
+          calc
+            _ < ii + (l3.length - (ii + 1)) - 1 := hj
+            _ = _ := by
+              rw [←Nat.add_sub_assoc, Nat.add_comm, Nat.sub_add_eq]; simp [Nat.sub_sub]
+              exact Nat.add_one_le_of_lt ii.2
+        by_cases hjj : j + 1 < ii
+        · have h1 : j + 1 < ((l3.map (· * s i)).take ii ).length := by simpa [length_take]
+          have h2 : j < ((l3.map (· * s i)).take ii ).length :=
+            (show j < j + 1 by linarith).trans h1
+          rw [getElem_append j h2, getElem_append (j + 1) h1, getElem_take', getElem_take']
+          simp; have h3 := h9 ⟨j + 1, hjj.trans ii.2⟩ (Fin.lt_def.2 hjj); simp at h3
+          have h4 := ((lt_simple_mul_iff cs i _).1 <| h7 ⟨j + 1, hjj.trans ii.2⟩ (Fin.lt_def.2 hjj))
+          have h5 := ((lt_simple_mul_iff cs i _).1 <| h7 ⟨j, (show j < j + 1 by linarith).trans
+            (hjj.trans ii.2)⟩ (Fin.lt_def.2 (by linarith)))
+          simp at h4 h5
+          have := List.chain'_iff_get.1 hl3.1 j (Nat.lt_sub_of_add_lt (hjj.trans ii.2))
+          simp [covby] at this
+          exact ⟨h3, by rw [←h4, ←h5, this.2] ⟩
+        · by_cases hjj' : j + 1 = ii
+          · have h1 : j < ((l3.map (· * s i)).take ii ).length := by
+              simp [length_take]; rw [←hjj']; linarith
+            rw [getElem_append j h1, getElem_take']; simp [hjj']
+            rw [List.getElem_append_right' (by simp [length_take]) ]; simp
+            have h2 : l3[j] * s i = l3[j + 1] := by
+              simp [Nat.eq_sub_of_add_eq hjj', Nat.sub_add_cancel (Nat.add_one_le_of_lt h6)]
+              exact h8.symm
+            have := List.chain'_iff_get.1 hl3.1 (j + 1)
+              (by apply Nat.add_lt_of_lt_sub; simpa [Nat.sub_sub])
+            simp [covby] at this; simp [←hjj',]; rwa [h2]
+          · replace hjj' : ii.1 < j + 1 :=
+              lt_of_le_of_ne (le_of_not_lt hjj) (by exact fun a ↦ hjj' (id a.symm))
+            by_cases h1 : j = ii.1
+            · simp [h1, List.getElem_append_right']
+              have := List.chain'_iff_get.1 hl3.1 (ii.1 + 1)
+                (by apply Nat.add_lt_of_lt_sub; simp [Nat.sub_sub]; rwa [←h1])
+              simp [covby] at this; exact this
+            · have h1 : ii.1 < j := lt_of_le_of_ne (Nat.le_of_lt_add_one hjj') (by simp [h1];tauto)
+              rw [List.getElem_append_right' (by simp [length_take]; linarith)]
+              rw [List.getElem_append_right' (by simp [length_take]; linarith)]
+              have h2 : ii.1 + 1 + (j - ii.1) = j + 1 := by
+                rw [←Nat.add_sub_assoc (_root_.le_of_lt h1), add_rotate, Nat.add_sub_cancel]; abel
+              have h3 : ii.1 + 1 + (j + 1 - ii.1) = j + 2 := by
+                rw [←Nat.add_sub_assoc (_root_.le_of_lt (h1.trans (by linarith))), add_rotate,
+                   Nat.add_sub_cancel]; ring
+              simp [h2, h3]
+              have := List.chain'_iff_get.1 hl3.1 (j + 1)
+                (by apply Nat.add_lt_of_lt_sub; simpa [Nat.sub_sub])
+              simp [covby] at this; exact this
+      · constructor
+        · have : map (· * s i) (take (ii.1) l3) ≠ [] := by
+            intro h; rw [List.map_eq_nil, List.take_eq_nil_iff] at h; contrapose! h
+            exact ⟨Nat.pos_iff_ne_zero.1 h6, by simp [hl4]⟩
+          rw [List.head?_append_of_ne_nil ((l3.take ii.1).map (· * s i)) this]
+          simp [List.head?_take, Nat.pos_iff_ne_zero.1 h6]
+          exact ⟨u * s i, ⟨hl3.2.1, by simp⟩ ⟩
+        · by_cases h1 : ii.1 + 1 = l3.length
+          · simp [List.drop_eq_nil_iff_le, h1, List.getLast?_take, Nat.pos_iff_ne_zero.1 h6]
+            left; use l3[ii.1 - 1]; simp
+            have h2 : ii.1 = l3.length - 1 := Nat.eq_sub_of_add_eq h1
+            have : l3[ii.1] = v := by simp [h2, hl4]
+            rw [←this]; exact h8.symm
+          · have : ii.1 + 1 < l3.length := lt_of_le_of_ne (Nat.add_one_le_iff.2 ii.2) (by simp [h1])
+            simp; left; simp [List.getLast?_drop, not_le_of_lt this, hl3.2.2]
 
 end chainProp
 
@@ -715,7 +391,6 @@ instance : IsDirected cs.Group (· ≤ ·) where
       have ha : a = 1 := cs.length_eq_zero_iff.1 this.1
       have hb : b = 1 := cs.length_eq_zero_iff.1 this.2
       simp [ha, hb]
-      exact ⟨1, le_refl 1⟩
     · wlog h1 : (0 < ℓ a) generalizing a b
       · have h2 : 0 < ℓ b := by linarith
         have := this b a (by linarith) h2
@@ -743,58 +418,7 @@ instance : IsDirected cs.Group (· ≤ ·) where
           simp at this
           have leci : c ≤ c * s i := by
             rw [not_isRightDescent_iff] at hci
-            exact le_of_lt cs <| (lt_simple_mul_iff cs i c).2 hci.symm
+            exact le_of_lt <| (lt_simple_mul_iff cs i c).2 hci.symm
           exact ⟨c * s i, ⟨this.2, hc.2.trans leci⟩ ⟩
-
--- section sub_expr
-
--- variable {l l' : List B} [DecidableEq B]
--- variable (hlt : toCoxeterGroup cs (π l) < toCoxeterGroup cs (π l'))
---   (h1 : cs.IsReduced l')
-
--- def sub_expr (l l' : List B) (h : cs.IsReduced l') :=
---   {ll // π ll = π l ∧ ll <+ l' ∧ cs.IsReduced ll}
-
--- lemma sublist_cases {α : Type} {l l' : List α} (h : l <+ l') :
---   l = l' ∨ ∃ n, l.get? n ≠ l'.get? n := sorry
-
--- def first_diff_element {α : Type} [DecidableEq α] {l l' : List α} (h : l <+ l') (hne : l ≠ l') :=
---   Nat.find <| (or_iff_right hne).1 (sublist_cases h)
-
--- instance (l l' : List B) (h : cs.IsReduced l') : Fintype (sub_expr cs l l' h) := sorry
-
--- lemma sub_expr_nonempty_of_lt  : Nonempty (sub_expr cs l l' h1):= sorry
-
--- lemma sub_expr_diff_of_lt (hlt : toCoxeterGroup cs (π l) < toCoxeterGroup cs (π l'))
---   (h1 : cs.IsReduced l') : ∀ ll : sub_expr cs l l' h1, ll.1 <+ l' ∧ ll.1 ≠ l' := sorry
-
--- def sub_exp_ifun (hlt : toCoxeterGroup cs (π l) < toCoxeterGroup cs (π l'))
---   (h1 : cs.IsReduced l') : (sub_expr cs l l' h1) → ℕ := fun L => by
---       let cond := sub_expr_diff_of_lt cs hlt h1 L
---       exact first_diff_element cond.1 cond.2
-
--- lemma sub_exp_ifun_image_nonempty (hlt : toCoxeterGroup cs (π l) < toCoxeterGroup cs (π l'))
---   (h1 : cs.IsReduced l') : (Finset.univ.image (sub_exp_ifun cs hlt h1) ).Nonempty := sorry
-
--- def imax (hlt : toCoxeterGroup cs (π l) < toCoxeterGroup cs (π l'))
---   (h1 : cs.IsReduced l') := (Finset.univ.image (sub_exp_ifun cs hlt h1)).max' <|
---     sub_exp_ifun_image_nonempty cs hlt h1
-
--- noncomputable def red_sub_exp_imax (hlt : toCoxeterGroup cs (π l) < toCoxeterGroup cs (π l'))
---   (h1 : cs.IsReduced l') : sub_expr cs l l' h1 := Classical.choose
---     (Finset.mem_image.1 (Finset.max'_mem _ (sub_exp_ifun_image_nonempty cs hlt h1)))
-
--- lemma imax_lt_length (hlt : toCoxeterGroup cs (π l) < toCoxeterGroup cs (π l'))
---   (h1 : cs.IsReduced l') : imax cs hlt h1 < l'.length := sorry
-
--- lemma red_insert_imax (hlt : toCoxeterGroup cs (π l) < toCoxeterGroup cs (π l'))
---   (h1 : cs.IsReduced l') : cs.IsReduced <| (red_sub_exp_imax cs hlt h1).1.insertNth
---     (imax cs hlt h1) (l'.get ⟨imax cs hlt h1, imax_lt_length cs hlt h1⟩) := by
---       rw [List.insertNth_eq ]
---       simp [IsReduced]
---       sorry
---       sorry
-
--- end sub_expr
 
 end Bruhat

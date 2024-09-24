@@ -160,6 +160,8 @@ lemma liftingProp' {i : B} (hlt : u < v) (leq : ℓ u + 1 = ℓ v) (hllt : ¬ cs
 
 section chainProp
 
+variable {l : List cs.Group}
+
 @[simp]
 def covby : cs.Group → cs.Group → Prop := fun u v => u < v ∧ ℓ u + 1 = ℓ v
 
@@ -173,36 +175,6 @@ lemma covby.WellFounded : WellFounded (covby cs) := by
     intro y hy; simp [covby, ha] at hy;
   · exact Acc.intro (r := covby cs) a (fun y hy => ih y (by simp [covby, ha] at hy; exact hy.2))
 
-theorem chainProp (h : u < v) : ∃ p : List cs.Group,
-  (Chain' (covby cs) p ∧ p.head? = some u ∧ p.getLast? = some v) := by sorry
-
-lemma length_chain {l : List cs.Group} {n : ℕ} (h : u < v) (hl : Chain' (covby cs) l)
-  (h1 : l.head? = some u) (h2 : l.getLast? = some v) :
-   l.length = ℓ v - ℓ u + 1 := by
-  generalize hn : ℓ v - ℓ u = n
-  revert u v l
-  induction' n with n ih
-  · sorry
-  · sorry
-
-lemma covby_iff (u v : cs.Group): u ⋖ v ↔ covby cs u v := by
-  simp [CovBy, covby]
-  intro hlt
-  constructor <;> intro h
-  · contrapose! h
-    obtain ⟨p, hp⟩ := chainProp cs hlt
-    have : 2 <  p.length := sorry
-    use p[1]
-    sorry
-  · intro c hc
-    replace hc := h ▸ Nat.add_one_le_of_lt <| length_lt_of_lt cs hc
-    exact fun h => (not_le_of_lt (length_lt_of_lt cs h) hc)
-
-noncomputable instance : GradeOrder ℕ cs.Group where
-  grade := cs.length
-  grade_strictMono := fun _ _ h => length_lt_of_lt cs h
-  covBy_grade := fun _ _ h => (by rw [covby_iff, covby ] at h; simp [←h.2])
-
 lemma chainaux {i : B} (h : u < v) (h1 : cs.IsRightDescent v i) (h2 : ¬ cs.IsRightDescent u i) :
     u ≤ v * s i := by
       rcases (isRightDescent_iff_exist_reduced_word_getLast_eq cs).1 h1 with ⟨l, hl⟩
@@ -215,7 +187,7 @@ lemma chainaux {i : B} (h : u < v) (h1 : cs.IsRightDescent v i) (h2 : ¬ cs.IsRi
       simp at this
       rwa [hl'.1.2, hl.2.1, ←wordProd_dropLast? cs hl.2.2]
 
-theorem chainProp' (h : u < v) : ∃ p : List cs.Group,
+theorem chainProp (h : u < v) : ∃ p : List cs.Group,
   (Chain' (covby cs) p ∧ p.head? = some u ∧ p.getLast? = some v) := by
   generalize hn : ℓ u + ℓ v = n
   revert u v
@@ -372,6 +344,61 @@ theorem chainProp' (h : u < v) : ∃ p : List cs.Group,
             rw [←this]; exact h8.symm
           · have : ii.1 + 1 < l3.length := lt_of_le_of_ne (Nat.add_one_le_iff.2 ii.2) (by simp [h1])
             simp; left; simp [List.getLast?_drop, not_le_of_lt this, hl3.2.2]
+
+def uvChain' {α : Type} (r : α → α → Prop) : α → α → List α → Prop :=
+  fun u v l => (Chain' r l ∧ l.head? = some u ∧ l.getLast? = some v)
+
+lemma Chain'_lt_of_Chain'_covby (h : Chain' (covby cs) l) : Chain' (· < ·) l :=
+  List.Chain'.imp (fun _ _ h => h.1) h
+
+lemma List.head?_getLast?_eq_some {α : Type} {a b : α} {l : List α} (h1 : l.head? = some a)
+  (h2 : l.getLast? = some b) (h : a ≠ b): ∃ inl : List α, l = a :: inl.concat b:= by
+    obtain ⟨tail, ih⟩ := List.head?_eq_some_iff.1 h1
+    have : tail ≠ [] := by intro h3; simp [h3, ih] at *; exact h h2
+    obtain ⟨inl, x, h3⟩ := (or_iff_right this).1 (List.eq_nil_or_concat tail)
+    simp [h3] at ih
+    simp [ih, List.getLast?_concat, List.getLast?_cons] at h2
+    simp [h2] at ih
+    exact ⟨inl, by convert ih; simp⟩
+
+lemma chain_of_length_diff_eq_one (h : u < v) (h1 : ℓ u + 1 = ℓ v)
+  (h2 : uvChain' (covby cs) u v l) : l = [u, v] := by
+    obtain ⟨inl, h3⟩ := List.head?_getLast?_eq_some h2.2.1 h2.2.2 (ne_of_lt h)
+    have h4 : inl = [] := by
+      by_contra!
+      obtain ⟨x, l', h5⟩ := List.exists_cons_of_ne_nil this
+      simp [h5] at h3; simp [h3] at h2
+      have h6 := Chain'_lt_of_Chain'_covby cs h2.1
+      simp [List.chain'_iff_pairwise] at h6
+      have h7 : u < x ∧ x < v := ⟨h6.1.1, by simp [h6.2.1]⟩
+      have h8 : ℓ u < ℓ x ∧ ℓ x < ℓ v := ⟨length_lt_of_lt cs h7.1, length_lt_of_lt cs h7.2⟩
+      have := Nat.add_one_le_of_lt h8.1
+      simp [h1] at this
+      exact not_le_of_lt h8.2 this
+    simp [h4] at h3
+    exact h3
+
+lemma covby_iff (u v : cs.Group): u ⋖ v ↔ covby cs u v := by
+  simp [CovBy, covby]
+  intro hlt
+  constructor <;> intro h
+  · contrapose! h
+    obtain ⟨p, hp⟩ := chainProp cs hlt
+    obtain ⟨inl, h1⟩ := List.head?_getLast?_eq_some hp.2.1 hp.2.2 (ne_of_lt hlt)
+    have h2 : inl ≠ [] := by intro h2; simp [h2] at h1; simp [h1] at hp; exact h hp.2
+    obtain ⟨x, l', h3⟩ := exists_cons_of_ne_nil h2
+    rw [h3] at h1
+    have h4 : Chain' (· < ·) p := Chain'_lt_of_Chain'_covby cs hp.1
+    simp [h1, List.chain'_iff_pairwise] at h4
+    exact ⟨x, ⟨h4.1.1, by simp [h4.2.1] ⟩ ⟩
+  · intro c hc
+    replace hc := h ▸ Nat.add_one_le_of_lt <| length_lt_of_lt cs hc
+    exact fun h => (not_le_of_lt (length_lt_of_lt cs h) hc)
+
+noncomputable instance : GradeOrder ℕ cs.Group where
+  grade := cs.length
+  grade_strictMono := fun _ _ h => length_lt_of_lt cs h
+  covBy_grade := fun _ _ h => (by rw [covby_iff, covby ] at h; simp [←h.2])
 
 end chainProp
 

@@ -1,6 +1,6 @@
 import Mathlib.GroupTheory.Coxeter.Bruhat
 import Mathlib.Algebra.Polynomial.Laurent
-
+-- import Mathlib.LinearAlgebra.Finsupp.VectorSpace
 
 variable {B : Type}
 variable {W : Type} [Group W]
@@ -15,7 +15,7 @@ local prefix:100 "lis" => cs.leftInvSeq
 
 namespace CoxeterSystem
 
-def Hecke := cs.Group →₀ (LaurentPolynomial ℤ)
+abbrev Hecke := cs.Group →₀ (LaurentPolynomial ℤ)
 
 end CoxeterSystem
 
@@ -27,7 +27,7 @@ noncomputable section Hecke
 
 instance : AddCommMonoid cs.Hecke := Finsupp.instAddCommMonoid
 
-instance : Module (LaurentPolynomial ℤ) cs.Hecke := Finsupp.module _ _
+instance moduleLaurent : Module (LaurentPolynomial ℤ) cs.Hecke := Finsupp.module _ _
 
 instance : FunLike cs.Hecke cs.Group (LaurentPolynomial ℤ) := Finsupp.instFunLike
 
@@ -38,6 +38,12 @@ def T : cs.Group → cs.Hecke := fun w => Finsupp.single w 1
 noncomputable def q :=@LaurentPolynomial.T ℤ _ 1
 
 local notation : max "q⁻¹" => @LaurentPolynomial.T ℤ _ (-1)
+local notation : max "T₁" => T cs 1
+
+instance : One (cs.Hecke) where
+  one := T₁
+
+instance : Basis W (LaurentPolynomial ℤ) cs.Hecke := Finsupp.basisSingleOne
 
 section HeckeMul
 
@@ -55,24 +61,43 @@ def mul_simple (h : cs.Hecke) (i : B) : cs.Hecke :=
 
 end HeckeMul
 
+lemma finsupp_smul (x : cs.Hecke) (i : B) :
+  (Function.support fun w ↦ x w • simple_mul_T cs i w).Finite := by
+    suffices (Function.support fun w ↦ x w • simple_mul_T cs i w) ⊆ x.support by
+      apply Set.Finite.subset (by simp) this
+    simp [not_imp_not]
+    intro w hw
+    simp [hw]
+
 def opl (i : B) : End_ε where
   toFun := fun h => simple_mul cs i h
   map_add' := by
     intro x y
-    simp [simple_mul]
-    sorry
-  map_smul' := sorry
+    simp [simple_mul, add_smul]
+    rw [finsum_add_distrib]
+    all_goals apply finsupp_smul
+  map_smul' := by
+    intro r x
+    simp [simple_mul, mul_smul]
+    rw [smul_finsum']
+    apply finsupp_smul
 
 def opr (i : B) : End_ε where
   toFun := fun h => mul_simple cs h i
   map_add' := by
     intro x y
-    simp [simple_mul]
-    sorry
+    simp [mul_simple, add_smul]
+    rw [finsum_add_distrib]
+
+    all_goals sorry
   map_smul' := sorry
 
-lemma opl_commute_opr : ∀ i j :B, LinearMap.comp (opr cs j) (opl cs i) =
-  LinearMap.comp (opl cs i) (opr cs j) := by sorry
+lemma opl_commute_opr : ∀ i j : B, LinearMap.comp (opr cs j) (opl cs i) =
+  LinearMap.comp (opl cs i) (opr cs j) := by
+    intro i j
+    ext h
+    simp [opl, opr]
+    sorry
 
 def generator_set := opl cs '' (Set.univ)
 
@@ -82,9 +107,9 @@ def subalg := Algebra.adjoin (LaurentPolynomial ℤ) (generator_set cs)
 
 def subalg' := Algebra.adjoin (LaurentPolynomial ℤ) (generator_set' cs)
 
-def alg_hom : subalg cs → cs.Hecke := fun f => f.1 (T cs 1)
+def alg_hom : subalg cs → cs.Hecke := fun f => f.1 T₁
 
-def alg_hom' : subalg' cs → cs.Hecke := fun f => f.1 (T cs 1)
+def alg_hom' : subalg' cs → cs.Hecke := fun f => f.1 T₁
 
 instance subalg.Algebra: Algebra (LaurentPolynomial ℤ) (subalg cs) :=
   Subalgebra.algebra (subalg cs)
@@ -92,12 +117,95 @@ instance subalg.Algebra: Algebra (LaurentPolynomial ℤ) (subalg cs) :=
 instance subalg'.Algebra: Algebra (LaurentPolynomial ℤ) (subalg' cs) :=
   Subalgebra.algebra (subalg' cs)
 
+lemma subalg_commute_subalg'_aux (f : subalg cs) (hf : f.1 ∈ generator_set cs) (g : subalg' cs) :
+  f.1 ∘ g.1 = g.1 ∘ f.1 := by
+    rcases hf with ⟨u, hu⟩
+    rw [←hu.2]
+    revert g
+    apply Algebra.adjoin_induction'
+    · intro g ⟨v, hv⟩
+      simp
+      rw [←hv.2, ←LinearMap.coe_comp, ←LinearMap.coe_comp, opl_commute_opr cs u v]
+    · intro r
+      ext
+      simp
+    · intro f1 f2 hf1 hf2
+      push_cast
+      rw [←LinearMap.coe_comp, ←LinearMap.coe_comp] at hf1 hf2
+      rw [←LinearMap.coe_comp, LinearMap.comp_add]
+      ext
+      simp [hf1, hf2]
+    · intro f1 f2 hf1 hf2
+      ext
+      have h1 := congrFun hf1
+      have h2 := congrFun hf2
+      simp at h1 h2 ⊢
+      rw [←h2, h1]
+
+lemma subalg_commute_subalg' (f : subalg cs) (g : subalg' cs) : f.1 ∘ g.1 = g.1 ∘ f.1 := by
+  revert f
+  apply Algebra.adjoin_induction'
+  · intro f hf
+    apply subalg_commute_subalg'_aux
+    simp [hf]
+  · intro r
+    ext
+    simp
+  · intro f1 f2 hf1 hf2
+    ext h
+    push_cast
+    have h1 := congrFun hf1
+    have h2 := congrFun hf2
+    simp at h1 h2 ⊢
+    rw [h1, h2]
+  · intro f1 f2 hf1 hf2
+    ext h _ _
+    have h1 := congrFun hf1
+    have h2 := congrFun hf2
+    simp at h1 h2 ⊢
+    rw [h2, h1]
+
+lemma alg_hom'_surj : Function.Surjective (alg_hom' cs) := by
+  intro h
+  simp [alg_hom']
+
+  sorry
+
+lemma inj_aux (f : subalg cs) (h : alg_hom cs f = 0) : f = 0 := by
+  simp [alg_hom] at h
+  have h1 : ∀ g : subalg' cs, (g.1 ∘ f.1) T₁ = 0 := by simp [h]
+  have h2 : ∀ g : subalg' cs, (f.1 ∘ g.1) T₁ = 0 := by
+    intro g
+    rw [subalg_commute_subalg' cs f g]
+    exact h1 g
+  rw [←Subtype.val_inj]
+  apply LinearMap.ext
+  intro x
+  simp at h2
+  rcases alg_hom'_surj cs x with ⟨a, ha⟩
+  specialize h2 a a.2
+  simp [alg_hom'] at ha
+  rw [ha] at h2
+  simp [h2]
 
 instance : IsLinearMap (LaurentPolynomial ℤ) (alg_hom cs) where
-  map_add := sorry
-  map_smul := sorry
+  map_add := by simp [alg_hom]
+  map_smul := by simp [alg_hom]
 
-lemma alg_hom_bijective : Function.Bijective (alg_hom cs) := sorry
+lemma alg_hom_bijective : Function.Bijective (alg_hom cs) := by
+  constructor
+  · intro f g h
+    simp [alg_hom] at h
+    have h1 : (f.1 - g.1) T₁ = 0 := by simp [h]
+    have h2 : ∀ {f : End_ε}, f T₁ = 0 → f = 0 := by
+      intro f h1
+      -- exact inj_aux cs ⟨f, by simp [subalg]; sorry⟩ h1
+      sorry
+    suffices f.1 - g.1 = 0 by
+      have : f.1 = g.1 := eq_of_sub_eq_zero this
+      norm_cast at this
+    exact h2 h1
+  · sorry
 
 def algEquiv : LinearEquiv (@RingHom.id (LaurentPolynomial ℤ) _)  (subalg cs) cs.Hecke where
   toFun := alg_hom cs
@@ -116,8 +224,9 @@ lemma smul_assoc (r : LaurentPolynomial ℤ) (x y : cs.Hecke) :
 lemma smul_comm (r : LaurentPolynomial ℤ) (x y : cs.Hecke) :
   HeckeMul cs x (r • y) = r • (HeckeMul cs x y) := by sorry
 
--- instance : Algebra (LaurentPolynomial ℤ) cs.Hecke := by
---   refine Algebra.ofModule ?_ ?_
+instance Hecke.Semiring : Semiring (cs.Hecke) := sorry
+
+instance : Algebra (LaurentPolynomial ℤ) cs.Hecke := sorry
 -- #check @Module.toDistribMulAction
 end Hecke
 

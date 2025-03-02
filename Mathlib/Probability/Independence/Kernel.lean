@@ -3,9 +3,10 @@ Copyright (c) 2023 Rémy Degenne. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Rémy Degenne
 -/
-import Mathlib.MeasureTheory.Constructions.Pi
+import Mathlib.Probability.ConditionalProbability
 import Mathlib.Probability.Kernel.Basic
 import Mathlib.Tactic.Peel
+import Mathlib.MeasureTheory.MeasurableSpace.Pi
 
 /-!
 # Independence with respect to a kernel and a measure
@@ -16,8 +17,8 @@ for any sets `f i_1 ∈ π i_1, ..., f i_n ∈ π i_n`, then for `μ`-almost eve
 `κ a (⋂ i in s, f i) = ∏ i ∈ s, κ a (f i)`.
 
 This notion of independence is a generalization of both independence and conditional independence.
-For conditional independence, `κ` is the conditional kernel `ProbabilityTheory.condexpKernel` and
-`μ` is the ambiant measure. For (non-conditional) independence, `κ = Kernel.const Unit μ` and the
+For conditional independence, `κ` is the conditional kernel `ProbabilityTheory.condExpKernel` and
+`μ` is the ambient measure. For (non-conditional) independence, `κ = Kernel.const Unit μ` and the
 measure is the Dirac measure on `Unit`.
 
 The main purpose of this file is to prove only once the properties that hold for both conditional
@@ -44,7 +45,7 @@ definitions in the particular case of the usual independence notion.
 * `ProbabilityTheory.Kernel.IndepSets.Indep`: variant with two π-systems.
 -/
 
-open MeasureTheory MeasurableSpace
+open Set MeasureTheory MeasurableSpace
 
 open scoped MeasureTheory ENNReal
 
@@ -278,7 +279,7 @@ theorem indep_bot_right (m' : MeasurableSpace Ω) {_mΩ : MeasurableSpace Ω}
   rcases eq_zero_or_isMarkovKernel κ with rfl| h
   · simp
   refine Filter.Eventually.of_forall (fun a ↦ ?_)
-  cases' ht with ht ht
+  rcases ht with ht | ht
   · rw [ht, Set.inter_empty, measure_empty, mul_zero]
   · rw [ht, Set.inter_univ, measure_univ, mul_one]
 
@@ -322,7 +323,7 @@ theorem IndepSets.union {s₁ s₂ s' : Set (Set Ω)} {_mΩ : MeasurableSpace Ω
     (h₁ : IndepSets s₁ s' κ μ) (h₂ : IndepSets s₂ s' κ μ) :
     IndepSets (s₁ ∪ s₂) s' κ μ := by
   intro t1 t2 ht1 ht2
-  cases' (Set.mem_union _ _ _).mp ht1 with ht1₁ ht1₂
+  rcases (Set.mem_union _ _ _).mp ht1 with ht1₁ | ht1₂
   · exact h₁ t1 t2 ht1₁ ht2
   · exact h₂ t1 t2 ht1₂ ht2
 
@@ -340,7 +341,7 @@ theorem IndepSets.iUnion {s : ι → Set (Set Ω)} {s' : Set (Set Ω)} {_mΩ : M
     IndepSets (⋃ n, s n) s' κ μ := by
   intro t1 t2 ht1 ht2
   rw [Set.mem_iUnion] at ht1
-  cases' ht1 with n ht1
+  obtain ⟨n, ht1⟩ := ht1
   exact hyp n t1 t2 ht1 ht2
 
 theorem IndepSets.bUnion {s : ι → Set (Set Ω)} {s' : Set (Set Ω)} {_mΩ : MeasurableSpace Ω}
@@ -359,7 +360,7 @@ theorem IndepSets.inter {s₁ s' : Set (Set Ω)} (s₂ : Set (Set Ω)) {_mΩ : M
 theorem IndepSets.iInter {s : ι → Set (Set Ω)} {s' : Set (Set Ω)} {_mΩ : MeasurableSpace Ω}
     {κ : Kernel α Ω} {μ : Measure α} (h : ∃ n, IndepSets (s n) s' κ μ) :
     IndepSets (⋂ n, s n) s' κ μ := by
-  intro t1 t2 ht1 ht2; cases' h with n h; exact h t1 t2 (Set.mem_iInter.mp ht1 n) ht2
+  intro t1 t2 ht1 ht2; obtain ⟨n, h⟩ := h; exact h t1 t2 (Set.mem_iInter.mp ht1 n) ht2
 
 theorem IndepSets.bInter {s : ι → Set (Set Ω)} {s' : Set (Set Ω)} {_mΩ : MeasurableSpace Ω}
     {κ : Kernel α Ω} {μ : Measure α} {u : Set ι} (h : ∃ n ∈ u, IndepSets (s n) s' κ μ) :
@@ -404,7 +405,7 @@ theorem iIndepSets.indepSets {s : ι → Set (Set Ω)} {_mΩ : MeasurableSpace �
   intro t₁ t₂ ht₁ ht₂
   have hf_m : ∀ x : ι, x ∈ ({i, j} : Finset ι) → ite (x = i) t₁ t₂ ∈ s x := by
     intro x hx
-    cases' Finset.mem_insert.mp hx with hx hx
+    rcases Finset.mem_insert.mp hx with hx | hx
     · simp [hx, ht₁]
     · simp [Finset.mem_singleton.mp hx, hij.symm, ht₂]
   have h1 : t₁ = ite (i = i) t₁ t₂ := by simp only [if_true, eq_self_iff_true]
@@ -478,32 +479,22 @@ theorem IndepSets.indep_aux {m₂ m : MeasurableSpace Ω}
     ∀ᵐ a ∂μ, κ a (t1 ∩ t2) = κ a t1 * κ a t2 := by
   rcases eq_zero_or_isMarkovKernel κ with rfl | h
   · simp
-  refine @induction_on_inter _ (fun t ↦ ∀ᵐ a ∂μ, κ a (t1 ∩ t) = κ a t1 * κ a t) _
-    m₂ hpm2 hp2 ?_ ?_ ?_ ?_ t2 ht2m
-  · simp only [Set.inter_empty, measure_empty, mul_zero, eq_self_iff_true,
-      Filter.eventually_true]
-  · exact fun t ht_mem_p2 ↦ hyp t1 t ht1 ht_mem_p2
-  · intros t ht h
-    filter_upwards [h] with a ha
-    have : t1 ∩ tᶜ = t1 \ (t1 ∩ t) := by
-      rw [Set.diff_self_inter, Set.diff_eq_compl_inter, Set.inter_comm]
-    rw [this,
-      measure_diff Set.inter_subset_left (ht1m.inter (h2 _ ht)).nullMeasurableSet
-        (measure_ne_top (κ a) _),
-      measure_compl (h2 _ ht) (measure_ne_top (κ a) t), measure_univ,
-      ENNReal.mul_sub (fun _ _ ↦ measure_ne_top (κ a) _), mul_one, ha]
-  · intros f hf_disj hf_meas h
-    rw [← ae_all_iff] at h
-    filter_upwards [h] with a ha
-    rw [Set.inter_iUnion, measure_iUnion]
-    · rw [measure_iUnion hf_disj (fun i ↦ h2 _ (hf_meas i))]
-      rw [← ENNReal.tsum_mul_left]
-      congr with i
-      rw [ha i]
-    · intros i j hij
-      rw [Function.onFun, Set.inter_comm t1, Set.inter_comm t1]
-      exact Disjoint.inter_left _ (Disjoint.inter_right _ (hf_disj hij))
-    · exact fun i ↦ ht1m.inter (h2 _ (hf_meas i))
+  induction t2, ht2m using induction_on_inter hpm2 hp2 with
+  | empty => simp
+  | basic u hu => exact hyp t1 u ht1 hu
+  | compl u hu ihu =>
+    filter_upwards [ihu] with a ha
+    rw [← Set.diff_eq, ← Set.diff_self_inter,
+      measure_diff inter_subset_left (ht1m.inter (h2 _ hu)).nullMeasurableSet (measure_ne_top _ _),
+      ha, measure_compl (h2 _ hu) (measure_ne_top _ _), measure_univ, ENNReal.mul_sub, mul_one]
+    exact fun _ _ ↦ measure_ne_top _ _
+  | iUnion f hfd hfm ihf =>
+    rw [← ae_all_iff] at ihf
+    filter_upwards [ihf] with a ha
+    rw [inter_iUnion, measure_iUnion, measure_iUnion hfd fun i ↦ h2 _ (hfm i)]
+    · simp only [ENNReal.tsum_mul_left, ha]
+    · exact hfd.mono fun i j h ↦ (h.inter_left' _).inter_right' _
+    · exact fun i ↦ .inter ht1m (h2 _ <| hfm i)
 
 /-- The measurable space structures generated by independent pi-systems are independent. -/
 theorem IndepSets.indep {m1 m2 m : MeasurableSpace Ω} {κ : Kernel α Ω} {μ : Measure α}
@@ -514,18 +505,15 @@ theorem IndepSets.indep {m1 m2 m : MeasurableSpace Ω} {κ : Kernel α Ω} {μ :
   rcases eq_zero_or_isMarkovKernel κ with rfl | h
   · simp
   intros t1 t2 ht1 ht2
-  refine @induction_on_inter _ (fun t ↦ ∀ᵐ (a : α) ∂μ, κ a (t ∩ t2) = κ a t * κ a t2) _ m1 hpm1 hp1
-    ?_ ?_ ?_ ?_ _ ht1
-  · simp only [Set.empty_inter, measure_empty, zero_mul, eq_self_iff_true,
-      Filter.eventually_true]
-  · intros t ht_mem_p1
-    have ht1 : MeasurableSet[m] t := by
-      refine h1 _ ?_
-      rw [hpm1]
-      exact measurableSet_generateFrom ht_mem_p1
-    exact IndepSets.indep_aux h2 hp2 hpm2 hyp ht_mem_p1 ht1 ht2
-  · intros t ht h
-    filter_upwards [h] with a ha
+  induction t1, ht1 using induction_on_inter hpm1 hp1 with
+  | empty =>
+    simp only [Set.empty_inter, measure_empty, zero_mul, eq_self_iff_true, Filter.eventually_true]
+  | basic t ht =>
+    refine IndepSets.indep_aux h2 hp2 hpm2 hyp ht (h1 _ ?_) ht2
+    rw [hpm1]
+    exact measurableSet_generateFrom ht
+  | compl t ht iht =>
+    filter_upwards [iht] with a ha
     have : tᶜ ∩ t2 = t2 \ (t ∩ t2) := by
       rw [Set.inter_comm t, Set.diff_self_inter, Set.diff_eq_compl_inter]
     rw [this, Set.inter_comm t t2,
@@ -533,7 +521,7 @@ theorem IndepSets.indep {m1 m2 m : MeasurableSpace Ω} {κ : Kernel α Ω} {μ :
         (measure_ne_top (κ a) _),
       Set.inter_comm, ha, measure_compl (h1 _ ht) (measure_ne_top (κ a) t), measure_univ,
       mul_comm (1 - κ a t), ENNReal.mul_sub (fun _ _ ↦ measure_ne_top (κ a) _), mul_one, mul_comm]
-  · intros f hf_disj hf_meas h
+  | iUnion f hf_disj hf_meas h =>
     rw [← ae_all_iff] at h
     filter_upwards [h] with a ha
     rw [Set.inter_comm, Set.inter_iUnion, measure_iUnion]
@@ -565,7 +553,7 @@ theorem indepSets_piiUnionInter_of_disjoint {s : ι → Set (Set Ω)}
     have hgm : ∀ i ∈ p1 ∪ p2, g i ∈ s i := by
       intro i hi_mem_union
       rw [Finset.mem_union] at hi_mem_union
-      cases' hi_mem_union with hi1 hi2
+      rcases hi_mem_union with hi1 | hi2
       · have hi2 : i ∉ p2 := fun hip2 => Set.disjoint_left.mp hST (hp1 hi1) (hp2 hip2)
         simp_rw [g, if_pos hi1, if_neg hi2, Set.inter_univ]
         exact ht1_m i hi1
@@ -698,7 +686,7 @@ theorem iIndepSets.piiUnionInter_of_not_mem {π : ι → Set (Set Ω)} {a : ι} 
   have h_f_mem : ∀ n ∈ insert a s, f n ∈ π n := by
     intro n hn_mem_insert
     dsimp only [f]
-    cases' Finset.mem_insert.mp hn_mem_insert with hn_mem hn_mem
+    rcases Finset.mem_insert.mp hn_mem_insert with hn_mem | hn_mem
     · simp [hn_mem, ht2_mem_pia]
     · have hn_ne_a : n ≠ a := by rintro rfl; exact haS (hs_mem hn_mem)
       simp [hn_ne_a, hn_mem, hft1_mem n hn_mem]
@@ -827,22 +815,22 @@ theorem IndepSets.indepSet_of_mem {_m0 : MeasurableSpace Ω} (hs : s ∈ S) (ht 
     IndepSet s t κ μ :=
   (indepSet_iff_measure_inter_eq_mul hs_meas ht_meas κ μ).mpr (h_indep s t hs ht)
 
-theorem Indep.indepSet_of_measurableSet {m₁ m₂ m0 : MeasurableSpace Ω} {κ : Kernel α Ω}
+theorem Indep.indepSet_of_measurableSet {m₁ m₂ _ : MeasurableSpace Ω} {κ : Kernel α Ω}
     {μ : Measure α}
     (h_indep : Indep m₁ m₂ κ μ) {s t : Set Ω} (hs : MeasurableSet[m₁] s)
     (ht : MeasurableSet[m₂] t) :
     IndepSet s t κ μ := by
   refine fun s' t' hs' ht' => h_indep s' t' ?_ ?_
-  · refine @generateFrom_induction _ (fun u => MeasurableSet[m₁] u) {s} ?_ ?_ ?_ ?_ _ hs'
-    · simp only [Set.mem_singleton_iff, forall_eq, hs]
-    · exact @MeasurableSet.empty _ m₁
-    · exact fun u hu => hu.compl
-    · exact fun f hf => MeasurableSet.iUnion hf
-  · refine @generateFrom_induction _ (fun u => MeasurableSet[m₂] u) {t} ?_ ?_ ?_ ?_ _ ht'
-    · simp only [Set.mem_singleton_iff, forall_eq, ht]
-    · exact @MeasurableSet.empty _ m₂
-    · exact fun u hu => hu.compl
-    · exact fun f hf => MeasurableSet.iUnion hf
+  · induction s', hs' using generateFrom_induction with
+    | hC t ht => exact ht ▸ hs
+    | empty => exact @MeasurableSet.empty _ m₁
+    | compl u _ hu => exact hu.compl
+    | iUnion f _ hf => exact .iUnion hf
+  · induction t', ht' using generateFrom_induction with
+    | hC s hs => exact hs ▸ ht
+    | empty => exact @MeasurableSet.empty _ m₂
+    | compl u _ hu => exact hu.compl
+    | iUnion f _ hf => exact .iUnion hf
 
 theorem indep_iff_forall_indepSet (m₁ m₂ : MeasurableSpace Ω) {_m0 : MeasurableSpace Ω}
     (κ : Kernel α Ω) (μ : Measure α) :
@@ -906,6 +894,17 @@ theorem iIndepFun_iff_measure_inter_preimage_eq_mul {ι : Type*} {β : ι → Ty
   rw [h_left_eq a, h_right_eq a, ha]
 
 alias ⟨iIndepFun.measure_inter_preimage_eq_mul, _⟩ := iIndepFun_iff_measure_inter_preimage_eq_mul
+
+lemma iIndepFun.comp {β γ : ι → Type*} {mβ : ∀ i, MeasurableSpace (β i)}
+    {mγ : ∀ i, MeasurableSpace (γ i)} {f : ∀ i, Ω → β i}
+    (h : iIndepFun mβ f κ μ) (g : ∀ i, β i → γ i) (hg : ∀ i, Measurable (g i)) :
+    iIndepFun mγ (fun i ↦ g i ∘ f i) κ μ := by
+  rw [iIndepFun_iff_measure_inter_preimage_eq_mul] at h ⊢
+  refine fun t s hs ↦ ?_
+  have := h t (sets := fun i ↦ g i ⁻¹' (s i)) (fun i a ↦ hg i (hs i a))
+  filter_upwards [this] with a ha
+  simp_rw [Set.preimage_comp]
+  exact ha
 
 theorem indepFun_iff_indepSet_preimage {mβ : MeasurableSpace β} {mβ' : MeasurableSpace β'}
     [IsZeroOrMarkovKernel κ] (hf : Measurable f) (hg : Measurable g) :
@@ -1029,7 +1028,7 @@ theorem iIndepFun.indepFun_finset (S T : Finset ι) (hST : Disjoint S T)
     simp_rw [Set.mem_inter_iff, Set.mem_iInter, Set.mem_preimage, Finset.mem_union]
     constructor <;> intro h
     · intro i hi
-      cases' hi with hiS hiT
+      rcases hi with hiS | hiT
       · replace h := h.1 i hiS
         simp_rw [sets_s', sets_t', dif_pos hiS, dif_neg (Finset.disjoint_left.mp hST hiS)]
         simp only [sets_s'] at h
@@ -1042,7 +1041,7 @@ theorem iIndepFun.indepFun_finset (S T : Finset ι) (hST : Disjoint S T)
   have h_meas_inter : ∀ i ∈ S ∪ T, MeasurableSet (sets_s' i ∩ sets_t' i) := by
     intros i hi_mem
     rw [Finset.mem_union] at hi_mem
-    cases' hi_mem with hi_mem hi_mem
+    rcases hi_mem with hi_mem | hi_mem
     · rw [h_sets_t'_univ hi_mem, Set.inter_univ]
       exact h_meas_s' i hi_mem
     · rw [h_sets_s'_univ hi_mem, Set.univ_inter]
@@ -1161,8 +1160,8 @@ theorem iIndepFun.indepFun_finset_prod_of_not_mem (hf_Indep : iIndepFun (fun _ �
   have h_right : f i =
     (fun p : ({i} : Finset ι) → β => p ⟨i, Finset.mem_singleton_self i⟩) ∘
     fun a (j : ({i} : Finset ι)) => f j a := rfl
-  have h_meas_right : Measurable fun p : ({i} : Finset ι) → β
-    => p ⟨i, Finset.mem_singleton_self i⟩ := measurable_pi_apply ⟨i, Finset.mem_singleton_self i⟩
+  have h_meas_right : Measurable fun p : ({i} : Finset ι) → β =>
+      p ⟨i, Finset.mem_singleton_self i⟩ := measurable_pi_apply _
   have h_left : ∏ j ∈ s, f j = (fun p : s → β => ∏ j, p j) ∘ fun a (j : s) => f j a := by
     ext1 a
     simp only [Function.comp_apply]
@@ -1200,5 +1199,57 @@ theorem iIndepSet.iIndepFun_indicator [Zero β] [One β] {m : MeasurableSpace β
   · exact @MeasurableSet.empty _ (generateFrom {s i})
 
 end IndepFun
+
+variable {ι Ω α β : Type*} {mΩ : MeasurableSpace Ω} {mα : MeasurableSpace α}
+  {mβ : MeasurableSpace β} {κ : Kernel α Ω} {μ : Measure α} {X : ι → Ω → α} {Y : ι → Ω → β}
+  {f : _ → Set Ω} {t : ι → Set β} {s : Finset ι}
+
+/-- The probability of an intersection of preimages conditioning on another intersection factors
+into a product. -/
+lemma iIndepFun.cond_iInter [Finite ι] (hY : ∀ i, Measurable (Y i))
+    (hindep : iIndepFun (fun _ ↦ mα.prod mβ) (fun i ω ↦ (X i ω, Y i ω)) κ μ)
+    (hf : ∀ i ∈ s, MeasurableSet[mα.comap (X i)] (f i))
+    (hy : ∀ᵐ a ∂μ, ∀ i ∉ s, κ a (Y i ⁻¹' t i) ≠ 0) (ht : ∀ i, MeasurableSet (t i)) :
+    ∀ᵐ a ∂μ, (κ a)[⋂ i ∈ s, f i | ⋂ i, Y i ⁻¹' t i] = ∏ i ∈ s, (κ a)[f i | Y i in t i] := by
+  classical
+  cases nonempty_fintype ι
+  let g (i' : ι) := if i' ∈ s then Y i' ⁻¹' t i' ∩ f i' else Y i' ⁻¹' t i'
+  have hYt i : MeasurableSet[(mα.prod mβ).comap fun ω ↦ (X i ω, Y i ω)] (Y i ⁻¹' t i) :=
+    ⟨.univ ×ˢ t i, .prod .univ (ht _), by ext; simp [eq_comm]⟩
+  have hg i : MeasurableSet[(mα.prod mβ).comap fun ω ↦ (X i ω, Y i ω)] (g i) := by
+    by_cases hi : i ∈ s <;> simp only [hi, ↓reduceIte, g]
+    · obtain ⟨A, hA, hA'⟩ := hf i hi
+      exact (hYt _).inter ⟨A ×ˢ .univ, hA.prod .univ, by ext; simp [← hA']⟩
+    · exact hYt _
+  filter_upwards [hy, hindep.ae_isProbabilityMeasure, hindep.meas_iInter hYt, hindep.meas_iInter hg]
+    with a hy _ hYt hg
+  calc
+    _ = (κ a (⋂ i, Y i ⁻¹' t i))⁻¹ * κ a ((⋂ i, Y i ⁻¹' t i) ∩ ⋂ i ∈ s, f i) := by
+      rw [cond_apply]; exact .iInter fun i ↦ hY i (ht i)
+    _ = (κ a (⋂ i, Y i ⁻¹' t i))⁻¹ * κ a (⋂ i, g i) := by
+      congr
+      calc
+        _ = (⋂ i, Y i ⁻¹' t i) ∩ ⋂ i, if i ∈ s then f i else .univ := by
+          congr
+          simp only [Set.iInter_ite, Set.iInter_univ, Set.inter_univ]
+        _ = ⋂ i, Y i ⁻¹' t i ∩ (if i ∈ s then f i else .univ) := by rw [Set.iInter_inter_distrib]
+        _ = _ := Set.iInter_congr fun i ↦ by by_cases hi : i ∈ s <;> simp [hi, g]
+    _ = (∏ i, κ a (Y i ⁻¹' t i))⁻¹ * κ a (⋂ i, g i) := by
+      rw [hYt]
+    _ = (∏ i, κ a (Y i ⁻¹' t i))⁻¹ * ∏ i, κ a (g i) := by
+      rw [hg]
+    _ = ∏ i, (κ a (Y i ⁻¹' t i))⁻¹ * κ a (g i) := by
+      rw [Finset.prod_mul_distrib, ENNReal.prod_inv_distrib]
+      exact fun _ _ i _ _ ↦ .inr <| measure_ne_top _ _
+    _ = ∏ i, if i ∈ s then (κ a)[f i | Y i ⁻¹' t i] else 1 := by
+      refine Finset.prod_congr rfl fun i _ ↦ ?_
+      by_cases hi : i ∈ s
+      · simp only [hi, ↓reduceIte, g, cond_apply (hY i (ht i))]
+      · simp only [hi, ↓reduceIte, g, ENNReal.inv_mul_cancel (hy i hi) (measure_ne_top _ _)]
+    _ = _ := by simp
+
+-- TODO: We can't state `Kernel.iIndepFun.cond` (the `Kernel` analogue of
+-- `ProbabilityTheory.iIndepFun.cond`) because we don't have a version of `ProbabilityTheory.cond`
+-- for kernels
 
 end ProbabilityTheory.Kernel

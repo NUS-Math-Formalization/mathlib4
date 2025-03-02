@@ -6,7 +6,6 @@ Authors: Xavier Roblot
 import Mathlib.LinearAlgebra.Matrix.Gershgorin
 import Mathlib.NumberTheory.NumberField.CanonicalEmbedding.ConvexBody
 import Mathlib.NumberTheory.NumberField.Units.Basic
-import Mathlib.RingTheory.RootsOfUnity.Basic
 
 /-!
 # Dirichlet theorem on the group of units of a number field
@@ -34,13 +33,13 @@ fundamental system `fundSystem`.
 
 ## Tags
 number field, units, Dirichlet unit theorem
- -/
+-/
 
 open scoped NumberField
 
 noncomputable section
 
-open NumberField NumberField.InfinitePlace NumberField.Units BigOperators
+open NumberField NumberField.InfinitePlace NumberField.Units
 
 variable (K : Type*) [Field K]
 
@@ -59,7 +58,6 @@ spans the full space over `ℝ` (see `unitLattice_span_eq_top`); this is the mai
 see the section `span_top` below for more details.
 -/
 
-open scoped Classical
 open Finset
 
 variable {K}
@@ -71,21 +69,19 @@ variable [NumberField K]
 /-- The distinguished infinite place. -/
 def w₀ : InfinitePlace K := (inferInstance : Nonempty (InfinitePlace K)).some
 
-variable (K)
-
+variable (K) in
 /-- The logarithmic embedding of the units (seen as an `Additive` group). -/
 def _root_.NumberField.Units.logEmbedding :
     Additive ((𝓞 K)ˣ) →+ ({w : InfinitePlace K // w ≠ w₀} → ℝ) :=
-{ toFun := fun x w => mult w.val * Real.log (w.val ↑(Additive.toMul x))
+{ toFun := fun x w => mult w.val * Real.log (w.val ↑x.toMul)
   map_zero' := by simp; rfl
   map_add' := fun _ _ => by simp [Real.log_mul, mul_add]; rfl }
-
-variable {K}
 
 @[simp]
 theorem logEmbedding_component (x : (𝓞 K)ˣ) (w : {w : InfinitePlace K // w ≠ w₀}) :
     (logEmbedding K (Additive.ofMul x)) w = mult w.val * Real.log (w.val x) := rfl
 
+open scoped Classical in
 theorem sum_logEmbedding_component (x : (𝓞 K)ˣ) :
     ∑ w, logEmbedding K (Additive.ofMul x) w =
       - mult (w₀ : InfinitePlace K) * Real.log (w₀ (x : K)) := by
@@ -126,12 +122,14 @@ theorem logEmbedding_eq_zero_iff {x : (𝓞 K)ˣ} :
   · ext w
     rw [logEmbedding_component, h w.val, Real.log_one, mul_zero, Pi.zero_apply]
 
+open scoped Classical in
 theorem logEmbedding_component_le {r : ℝ} {x : (𝓞 K)ˣ} (hr : 0 ≤ r) (h : ‖logEmbedding K x‖ ≤ r)
     (w : {w : InfinitePlace K // w ≠ w₀}) : |logEmbedding K (Additive.ofMul x) w| ≤ r := by
   lift r to NNReal using hr
   simp_rw [Pi.norm_def, NNReal.coe_le_coe, Finset.sup_le_iff, ← NNReal.coe_le_coe] at h
   exact h w (mem_univ _)
 
+open scoped Classical in
 theorem log_le_of_logEmbedding_le {r : ℝ} {x : (𝓞 K)ˣ} (hr : 0 ≤ r)
     (h : ‖logEmbedding K (Additive.ofMul x)‖ ≤ r) (w : InfinitePlace K) :
     |Real.log (w x)| ≤ (Fintype.card (InfinitePlace K)) * r := by
@@ -150,7 +148,7 @@ theorem log_le_of_logEmbedding_le {r : ℝ} {x : (𝓞 K)ˣ} (hr : 0 ≤ r)
         (fun w _ => logEmbedding_component_le hr h w)).trans ?_
       rw [nsmul_eq_mul]
       refine mul_le_mul ?_ le_rfl hr (Fintype.card (InfinitePlace K)).cast_nonneg
-      simp [card_univ]
+      simp
   · have hyp := logEmbedding_component_le hr h ⟨w, hw⟩
     rw [logEmbedding_component, abs_mul, Nat.abs_cast] at hyp
     refine (le_trans ?_ hyp).trans ?_
@@ -165,6 +163,7 @@ noncomputable def _root_.NumberField.Units.unitLattice :
     Submodule ℤ ({w : InfinitePlace K // w ≠ w₀} → ℝ) :=
   Submodule.map (logEmbedding K).toIntLinearMap ⊤
 
+open scoped Classical in
 theorem unitLattice_inter_ball_finite (r : ℝ) :
     ((unitLattice K : Set ({ w : InfinitePlace K // w ≠ w₀} → ℝ)) ∩
       Metric.closedBall 0 r).Finite := by
@@ -217,17 +216,14 @@ theorem seq_next {x : 𝓞 K} (hx : x ≠ 0) :
     fun w => ⟨(w x) / 2, div_nonneg (AbsoluteValue.nonneg _ _) (by norm_num)⟩
   suffices ∀ w, w ≠ w₁ → f w ≠ 0 by
     obtain ⟨g, h_geqf, h_gprod⟩ := adjust_f K B this
-    obtain ⟨y, h_ynz, h_yle⟩ := exists_ne_zero_mem_ringOfIntegers_lt (f := g)
+    obtain ⟨y, h_ynz, h_yle⟩ := exists_ne_zero_mem_ringOfIntegers_lt K (f := g)
       (by rw [convexBodyLT_volume]; convert hB; exact congr_arg ((↑) : NNReal → ENNReal) h_gprod)
     refine ⟨y, h_ynz, fun w hw => (h_geqf w hw ▸ h_yle w).trans ?_, ?_⟩
     · rw [← Rat.cast_le (K := ℝ), Rat.cast_natCast]
       calc
         _ = ∏ w : InfinitePlace K, w (algebraMap _ K y) ^ mult w :=
           (prod_eq_abs_norm (algebraMap _ K y)).symm
-        _ ≤ ∏ w : InfinitePlace K, (g w : ℝ) ^ mult w := by
-          refine prod_le_prod ?_ ?_
-          · exact fun _ _ => pow_nonneg (by positivity) _
-          · exact fun w _ => pow_le_pow_left (by positivity) (le_of_lt (h_yle w)) (mult w)
+        _ ≤ ∏ w : InfinitePlace K, (g w : ℝ) ^ mult w := by gcongr with w; exact (h_yle w).le
         _ ≤ (B : ℝ) := by
           simp_rw [← NNReal.coe_pow, ← NNReal.coe_prod]
           exact le_of_eq (congr_arg toReal h_gprod)
@@ -249,10 +245,6 @@ def seq : ℕ → { x : 𝓞 K // x ≠ 0 }
 /-- The terms of the sequence are nonzero. -/
 theorem seq_ne_zero (n : ℕ) : algebraMap (𝓞 K) K (seq K w₁ hB n) ≠ 0 :=
   RingOfIntegers.coe_ne_zero_iff.mpr (seq K w₁ hB n).prop
-
-/-- The terms of the sequence have nonzero norm. -/
-theorem seq_norm_ne_zero (n : ℕ) : Algebra.norm ℤ (seq K w₁ hB n : 𝓞 K) ≠ 0 :=
-  Algebra.norm_ne_zero_iff.mpr (Subtype.coe_ne_coe.1 (seq_ne_zero K w₁ hB n))
 
 /-- The sequence is strictly decreasing at infinite places distinct from `w₁`. -/
 theorem seq_decreasing {n m : ℕ} (h : n < m) (w : InfinitePlace K) (hw : w ≠ w₁) :
@@ -301,23 +293,19 @@ theorem exists_unit (w₁ : InfinitePlace K) :
         _ = w (algebraMap (𝓞 K) K (seq K w₁ hB m) * (algebraMap (𝓞 K) K (seq K w₁ hB n))⁻¹) := by
           rw [← congr_arg (algebraMap (𝓞 K) K) hu.choose_spec, mul_comm, map_mul (algebraMap _ _),
           ← mul_assoc, inv_mul_cancel₀ (seq_ne_zero K w₁ hB n), one_mul]
-        _ = w (algebraMap (𝓞 K) K (seq K w₁ hB m)) * w (algebraMap (𝓞 K) K (seq K w₁ hB n))⁻¹ :=
-          _root_.map_mul _ _ _
-        _ < 1 := by
-          rw [map_inv₀, mul_inv_lt_iff (pos_iff.mpr (seq_ne_zero K w₁ hB n)), mul_one]
-          exact seq_decreasing K w₁ hB hnm w hw
-  refine Set.Finite.exists_lt_map_eq_of_forall_mem
-    (t := { I : Ideal (𝓞 K) | 1 ≤ Ideal.absNorm I ∧ Ideal.absNorm I ≤ B })
-    (fun n => ?_) ?_
-  · rw [Set.mem_setOf_eq, Ideal.absNorm_span_singleton]
-    refine ⟨?_, seq_norm_le K w₁ hB n⟩
-    exact Nat.one_le_iff_ne_zero.mpr (Int.natAbs_ne_zero.mpr (seq_norm_ne_zero K w₁ hB n))
-  · rw [show { I : Ideal (𝓞 K) | 1 ≤ Ideal.absNorm I ∧ Ideal.absNorm I ≤ B } =
-          (⋃ n ∈ Set.Icc 1 B, { I : Ideal (𝓞 K) | Ideal.absNorm I = n }) by ext; simp]
-    exact Set.Finite.biUnion (Set.finite_Icc _ _) (fun n hn => Ideal.finite_setOf_absNorm_eq hn.1)
+      _ = w (algebraMap (𝓞 K) K (seq K w₁ hB m)) * w (algebraMap (𝓞 K) K (seq K w₁ hB n))⁻¹ :=
+        _root_.map_mul _ _ _
+      _ < 1 := by
+        rw [map_inv₀, mul_inv_lt_iff₀' (pos_iff.mpr (seq_ne_zero K w₁ hB n)), mul_one]
+        exact seq_decreasing K w₁ hB hnm w hw
+  refine Set.Finite.exists_lt_map_eq_of_forall_mem (t := {I : Ideal (𝓞 K) | Ideal.absNorm I ≤ B})
+    (fun n ↦ ?_) (Ideal.finite_setOf_absNorm_le B)
+  rw [Set.mem_setOf_eq, Ideal.absNorm_span_singleton]
+  exact seq_norm_le K w₁ hB n
 
 theorem unitLattice_span_eq_top :
     Submodule.span ℝ (unitLattice K : Set ({w : InfinitePlace K // w ≠ w₀} → ℝ)) = ⊤ := by
+  classical
   refine le_antisymm le_top ?_
   -- The standard basis
   let B := Pi.basisFun ℝ {w : InfinitePlace K // w ≠ w₀}
@@ -353,13 +341,13 @@ section statements
 
 variable [NumberField K]
 
-open scoped Classical
-open dirichletUnitTheorem FiniteDimensional
+open dirichletUnitTheorem Module
 
 /-- The unit rank of the number field `K`, it is equal to `card (InfinitePlace K) - 1`. -/
 def rank : ℕ := Fintype.card (InfinitePlace K) - 1
 
 instance instDiscrete_unitLattice : DiscreteTopology (unitLattice K) := by
+  classical
   refine discreteTopology_of_isOpen_singleton_zero ?_
   refine isOpen_singleton_of_finite_mem_nhds 0 (s := Metric.closedBall 0 1) ?_ ?_
   · exact Metric.closedBall_mem_nhds _ (by norm_num)
@@ -370,17 +358,20 @@ instance instDiscrete_unitLattice : DiscreteTopology (unitLattice K) := by
     rintro ⟨x, hx, rfl⟩
     exact ⟨Subtype.mem x, hx⟩
 
+open scoped Classical in
 instance instZLattice_unitLattice : IsZLattice ℝ (unitLattice K) where
   span_top := unitLattice_span_eq_top K
 
 protected theorem finrank_eq_rank :
     finrank ℝ ({w : InfinitePlace K // w ≠ w₀} → ℝ) = Units.rank K := by
+  classical
   simp only [finrank_fintype_fun_eq_card, Fintype.card_subtype_compl,
     Fintype.card_ofSubsingleton, rank]
 
 @[simp]
 theorem unitLattice_rank :
     finrank ℤ (unitLattice K) = Units.rank K := by
+  classical
   rw [← Units.finrank_eq_rank, ZLattice.rank ℝ]
 
 /-- The map obtained by quotienting by the kernel of `logEmbedding`. -/
@@ -406,9 +397,7 @@ theorem logEmbeddingQuot_injective :
     Function.comp_apply, EmbeddingLike.apply_eq_iff_eq] at h
   exact (EmbeddingLike.apply_eq_iff_eq _).mp <| (QuotientGroup.kerLift_injective _).eq_iff.mp h
 
-#adaptation_note
-/--
-After https://github.com/leanprover/lean4/pull/4119
+#adaptation_note /-- https://github.com/leanprover/lean4/pull/4119
 the `Module ℤ (Additive ((𝓞 K)ˣ ⧸ NumberField.Units.torsion K))` instance required below isn't found
 unless we use `set_option maxSynthPendingDepth 2`, or add
 explicit instances:
@@ -423,7 +412,7 @@ set_option maxSynthPendingDepth 2 -- Note this is active for the remainder of th
 def logEmbeddingEquiv :
     Additive ((𝓞 K)ˣ ⧸ (torsion K)) ≃ₗ[ℤ] (unitLattice K) :=
   LinearEquiv.ofBijective ((logEmbeddingQuot K).codRestrict (unitLattice K)
-    (Quotient.ind fun x ↦ logEmbeddingQuot_apply K _ ▸
+    (Quotient.ind fun _ ↦ logEmbeddingQuot_apply K _ ▸
       Submodule.mem_map_of_mem trivial)).toIntLinearMap
     ⟨fun _ _ ↦ by
       rw [AddMonoidHom.coe_toIntLinearMap, AddMonoidHom.codRestrict_apply,
@@ -435,11 +424,11 @@ theorem logEmbeddingEquiv_apply (x : (𝓞 K)ˣ) :
     logEmbeddingEquiv K (Additive.ofMul (QuotientGroup.mk x)) =
       logEmbedding K (Additive.ofMul x) := rfl
 
-instance : Module.Free ℤ (Additive ((𝓞 K)ˣ ⧸ (torsion K))) :=
-  Module.Free.of_equiv (logEmbeddingEquiv K).symm
+instance : Module.Free ℤ (Additive ((𝓞 K)ˣ ⧸ (torsion K))) := by
+  classical exact Module.Free.of_equiv (logEmbeddingEquiv K).symm
 
-instance : Module.Finite ℤ (Additive ((𝓞 K)ˣ ⧸ (torsion K))) :=
-  Module.Finite.equiv (logEmbeddingEquiv K).symm
+instance : Module.Finite ℤ (Additive ((𝓞 K)ˣ ⧸ (torsion K))) := by
+  classical exact Module.Finite.equiv (logEmbeddingEquiv K).symm
 
 -- Note that we prove this instance first and then deduce from it the instance
 -- `Monoid.FG (𝓞 K)ˣ`, and not the other way around, due to no `Subgroup` version
@@ -462,13 +451,13 @@ instance : Monoid.FG (𝓞 K)ˣ := by
   infer_instance
 
 theorem rank_modTorsion :
-    FiniteDimensional.finrank ℤ (Additive ((𝓞 K)ˣ ⧸ (torsion K))) = rank K := by
+    Module.finrank ℤ (Additive ((𝓞 K)ˣ ⧸ (torsion K))) = rank K := by
   rw [← LinearEquiv.finrank_eq (logEmbeddingEquiv K).symm, unitLattice_rank]
 
 /-- A basis of the quotient `(𝓞 K)ˣ ⧸ (torsion K)` seen as an additive ℤ-module. -/
 def basisModTorsion : Basis (Fin (rank K)) ℤ (Additive ((𝓞 K)ˣ ⧸ (torsion K))) :=
   Basis.reindex (Module.Free.chooseBasis ℤ _) (Fintype.equivOfCardEq <| by
-    rw [← FiniteDimensional.finrank_eq_card_chooseBasisIndex, rank_modTorsion, Fintype.card_fin])
+    rw [← Module.finrank_eq_card_chooseBasisIndex, rank_modTorsion, Fintype.card_fin])
 
 /-- The basis of the `unitLattice` obtained by mapping `basisModTorsion` via `logEmbedding`. -/
 def basisUnitLattice : Basis (Fin (rank K)) ℤ (unitLattice K) :=
@@ -478,7 +467,7 @@ def basisUnitLattice : Basis (Fin (rank K)) ℤ (unitLattice K) :=
 units in `basisModTorsion`. -/
 def fundSystem : Fin (rank K) → (𝓞 K)ˣ :=
   -- `:)` prevents the `⧸` decaying to a quotient by `leftRel` when we unfold this later
-  fun i => Quotient.out' (Additive.toMul (basisModTorsion K i):)
+  fun i => Quotient.out ((basisModTorsion K i).toMul:)
 
 theorem fundSystem_mk (i : Fin (rank K)) :
     Additive.ofMul (QuotientGroup.mk (fundSystem K i)) = (basisModTorsion K i) := by

@@ -3,7 +3,8 @@ Copyright (c) 2021 Eric Wieser. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Eric Wieser
 -/
-import Mathlib.Algebra.Group.Subgroup.MulOpposite
+import Mathlib.Algebra.Group.Action.End
+import Mathlib.Algebra.Group.Subgroup.MulOppositeLemmas
 import Mathlib.Algebra.Group.Submonoid.Pointwise
 import Mathlib.GroupTheory.GroupAction.ConjAct
 
@@ -41,20 +42,51 @@ lemma smul_coe_set [Group G] [SetLike S G] [SubgroupClass S G] {s : S} {a : G} (
     a • (s : Set G) = s := by
   ext; simp [Set.mem_smul_set_iff_inv_smul_mem, mul_mem_cancel_left, ha]
 
+@[norm_cast, to_additive]
+lemma coe_set_eq_one [Group G] {s : Subgroup G} : (s : Set G) = 1 ↔ s = ⊥ :=
+  (SetLike.ext'_iff.trans (by rfl)).symm
+
 @[to_additive (attr := simp)]
 lemma op_smul_coe_set [Group G] [SetLike S G] [SubgroupClass S G] {s : S} {a : G} (ha : a ∈ s) :
     MulOpposite.op a • (s : Set G) = s := by
   ext; simp [Set.mem_smul_set_iff_inv_smul_mem, mul_mem_cancel_right, ha]
 
 @[to_additive (attr := simp, norm_cast)]
-lemma coe_mul_coe [SetLike S G] [DivInvMonoid G] [SubgroupClass S G] (H : S) :
-    H * H = (H : Set G) := by aesop (add simp mem_mul)
-
-@[to_additive (attr := simp, norm_cast)]
 lemma coe_div_coe [SetLike S G] [DivisionMonoid G] [SubgroupClass S G] (H : S) :
     H / H = (H : Set G) := by simp [div_eq_mul_inv]
 
 variable [Group G] [AddGroup A] {s : Set G}
+
+namespace Set
+
+open Subgroup
+
+@[to_additive (attr := simp)]
+lemma mul_subgroupClosure (hs : s.Nonempty) : s * closure s = closure s := by
+  rw [← smul_eq_mul, ← Set.iUnion_smul_set]
+  have h a (ha : a ∈ s) : a • (closure s : Set G) = closure s :=
+    smul_coe_set <| subset_closure ha
+  simp +contextual [h, hs]
+
+open scoped RightActions in
+@[to_additive (attr := simp)]
+lemma subgroupClosure_mul (hs : s.Nonempty) : closure s * s = closure s := by
+  rw [← Set.iUnion_op_smul_set]
+  have h a (ha : a ∈ s) :  (closure s : Set G) <• a = closure s :=
+    op_smul_coe_set <| subset_closure ha
+  simp +contextual [h, hs]
+
+@[to_additive (attr := simp)]
+lemma pow_mul_subgroupClosure (hs : s.Nonempty) : ∀ n, s ^ n * closure s = closure s
+  | 0 => by simp
+  | n + 1 => by rw [pow_succ, mul_assoc, mul_subgroupClosure hs, pow_mul_subgroupClosure hs]
+
+@[to_additive (attr := simp)]
+lemma subgroupClosure_mul_pow (hs : s.Nonempty) : ∀ n, closure s * s ^ n = closure s
+  | 0 => by simp
+  | n + 1 => by rw [pow_succ', ← mul_assoc, subgroupClosure_mul hs, subgroupClosure_mul_pow hs]
+
+end Set
 
 namespace Subgroup
 
@@ -68,9 +100,9 @@ theorem closure_toSubmonoid (S : Set G) :
     (closure S).toSubmonoid = Submonoid.closure (S ∪ S⁻¹) := by
   refine le_antisymm (fun x hx => ?_) (Submonoid.closure_le.2 ?_)
   · refine
-      closure_induction hx
+      closure_induction
         (fun x hx => Submonoid.closure_mono subset_union_left (Submonoid.subset_closure hx))
-        (Submonoid.one_mem _) (fun x y hx hy => Submonoid.mul_mem _ hx hy) fun x hx => ?_
+        (Submonoid.one_mem _) (fun x y _ _ hx hy => Submonoid.mul_mem _ hx hy) (fun x _ hx => ?_) hx
     rwa [← Submonoid.mem_closure_inv, Set.union_inv, inv_inv, Set.union_comm]
   · simp only [true_and, coe_toSubmonoid, union_subset_iff, subset_closure, inv_subset_closure]
 
@@ -105,13 +137,13 @@ theorem closure_induction_right {p : (x : G) → x ∈ closure s → Prop} (one 
   closure_induction_left (s := MulOpposite.unop ⁻¹' s)
     (p := fun m hm => p m.unop <| by rwa [← op_closure] at hm)
     one
-    (fun _x hx _y hy => mul_right _ _ _ hx)
-    (fun _x hx _y hy => mul_inv_cancel _ _ _ hx)
+    (fun _x hx _y _ => mul_right _ _ _ hx)
+    (fun _x hx _y _ => mul_inv_cancel _ _ _ hx)
     (by rwa [← op_closure])
 
 @[to_additive (attr := simp)]
 theorem closure_inv (s : Set G) : closure s⁻¹ = closure s := by
-  simp only [← toSubmonoid_eq, closure_toSubmonoid, inv_inv, union_comm]
+  simp only [← toSubmonoid_inj, closure_toSubmonoid, inv_inv, union_comm]
 
 @[to_additive (attr := simp)]
 lemma closure_singleton_inv (x : G) : closure {x⁻¹} = closure {x} := by
@@ -170,6 +202,21 @@ theorem closure_mul_le (S T : Set G) : closure (S * T) ≤ closure S ⊔ closure
   sInf_le fun _x ⟨_s, hs, _t, ht, hx⟩ => hx ▸
     (closure S ⊔ closure T).mul_mem (SetLike.le_def.mp le_sup_left <| subset_closure hs)
       (SetLike.le_def.mp le_sup_right <| subset_closure ht)
+
+@[to_additive]
+lemma closure_pow_le : ∀ {n}, n ≠ 0 → closure (s ^ n) ≤ closure s
+  | 1, _ => by simp
+  | n + 2, _ =>
+    calc
+      closure (s ^ (n + 2))
+      _ = closure (s ^ (n + 1) * s) := by rw [pow_succ]
+      _ ≤ closure (s ^ (n + 1)) ⊔ closure s := closure_mul_le ..
+      _ ≤ closure s ⊔ closure s := by gcongr ?_ ⊔ _; exact closure_pow_le n.succ_ne_zero
+      _ = closure s := sup_idem _
+
+@[to_additive]
+lemma closure_pow {n : ℕ} (hs : 1 ∈ s) (hn : n ≠ 0) : closure (s ^ n) = closure s :=
+  (closure_pow_le hn).antisymm <| by gcongr; exact subset_pow hs hn
 
 @[to_additive]
 theorem sup_eq_closure_mul (H K : Subgroup G) : H ⊔ K = closure ((H : Set G) * (K : Set G)) :=
@@ -261,7 +308,7 @@ theorem smul_opposite_image_mul_preimage' (g : G) (h : Gᵐᵒᵖ) (s : Set G) :
     (fun y => h • y) '' ((g * ·) ⁻¹' s) = (g * ·) ⁻¹' ((fun y => h • y) '' s) := by
   simp [preimage_preimage, mul_assoc]
 
--- Porting note: deprecate?
+-- TODO: deprecate?
 @[to_additive]
 theorem smul_opposite_image_mul_preimage {H : Subgroup G} (g : G) (h : H.op) (s : Set G) :
     (fun y => h • y) '' ((g * ·) ⁻¹' s) = (g * ·) ⁻¹' ((fun y => h • y) '' s) :=
@@ -282,7 +329,7 @@ protected def pointwiseMulAction : MulAction α (Subgroup G) where
   one_smul S := by
     change S.map _ = S
     simpa only [map_one] using S.map_id
-  mul_smul a₁ a₂ S :=
+  mul_smul _ _ S :=
     (congr_arg (fun f : Monoid.End G => S.map f) (MonoidHom.map_mul _ _ _)).trans
       (S.map_map _ _).symm
 
@@ -357,13 +404,13 @@ theorem mem_inv_pointwise_smul_iff {a : α} {S : Subgroup G} {x : G} : x ∈ a�
 
 @[simp]
 theorem pointwise_smul_le_pointwise_smul_iff {a : α} {S T : Subgroup G} : a • S ≤ a • T ↔ S ≤ T :=
-  set_smul_subset_set_smul_iff
+  smul_set_subset_smul_set_iff
 
 theorem pointwise_smul_subset_iff {a : α} {S T : Subgroup G} : a • S ≤ T ↔ S ≤ a⁻¹ • T :=
-  set_smul_subset_iff
+  smul_set_subset_iff_subset_inv_smul_set
 
 theorem subset_pointwise_smul_iff {a : α} {S T : Subgroup G} : S ≤ a • T ↔ a⁻¹ • S ≤ T :=
-  subset_set_smul_iff
+  subset_smul_set_iff
 
 @[simp]
 theorem smul_inf (a : α) (S T : Subgroup G) : a • (S ⊓ T) = a • S ⊓ a • T := by
@@ -374,23 +421,38 @@ theorem smul_inf (a : α) (S T : Subgroup G) : a • (S ⊓ T) = a • S ⊓ a �
 def equivSMul (a : α) (H : Subgroup G) : H ≃* (a • H : Subgroup G) :=
   (MulDistribMulAction.toMulEquiv G a).subgroupMap H
 
-theorem subgroup_mul_singleton {H : Subgroup G} {h : G} (hh : h ∈ H) : (H : Set G) * {h} = H :=
-  suffices { x : G | x ∈ H } = ↑H by simpa [preimage, mul_mem_cancel_right (inv_mem hh)]
-  rfl
+theorem subgroup_mul_singleton {H : Subgroup G} {h : G} (hh : h ∈ H) : (H : Set G) * {h} = H := by
+  simp [preimage, mul_mem_cancel_right (inv_mem hh)]
 
-theorem singleton_mul_subgroup {H : Subgroup G} {h : G} (hh : h ∈ H) : {h} * (H : Set G) = H :=
-  suffices { x : G | x ∈ H } = ↑H by simpa [preimage, mul_mem_cancel_left (inv_mem hh)]
-  rfl
+theorem singleton_mul_subgroup {H : Subgroup G} {h : G} (hh : h ∈ H) : {h} * (H : Set G) = H := by
+  simp [preimage, mul_mem_cancel_left (inv_mem hh)]
 
-theorem Normal.conjAct {G : Type*} [Group G] {H : Subgroup G} (hH : H.Normal) (g : ConjAct G) :
-    g • H = H :=
+theorem Normal.conjAct {H : Subgroup G} (hH : H.Normal) (g : ConjAct G) : g • H = H :=
   have : ∀ g : ConjAct G, g • H ≤ H :=
     fun _ => map_le_iff_le_comap.2 fun _ h => hH.conj_mem _ h _
   (this g).antisymm <| (smul_inv_smul g H).symm.trans_le (map_mono <| this _)
 
 @[simp]
-theorem smul_normal (g : G) (H : Subgroup G) [h : Normal H] : MulAut.conj g • H = H :=
+theorem Normal.conj_smul_eq_self (g : G) (H : Subgroup G) [h : Normal H] : MulAut.conj g • H = H :=
   h.conjAct g
+
+@[deprecated (since := "2025-03-01")] alias smul_normal := Normal.conj_smul_eq_self
+
+theorem Normal.of_conjugate_fixed {H : Subgroup G} (h : ∀ g : G, (MulAut.conj g) • H = H) :
+    H.Normal := by
+  constructor
+  intro n hn g
+  rw [← h g, Subgroup.mem_pointwise_smul_iff_inv_smul_mem, ← map_inv, MulAut.smul_def,
+    MulAut.conj_apply, inv_inv, mul_assoc, mul_assoc, inv_mul_cancel, mul_one,
+    ← mul_assoc, inv_mul_cancel, one_mul]
+  exact hn
+
+theorem normalCore_eq_iInf_conjAct (H : Subgroup G) :
+    H.normalCore = ⨅ (g : ConjAct G), g • H := by
+  ext g
+  simp only [Subgroup.normalCore, Subgroup.mem_iInf, Subgroup.mem_pointwise_smul_iff_inv_smul_mem]
+  refine ⟨fun h x ↦ h x⁻¹, fun h x ↦ ?_⟩
+  simpa only [ConjAct.toConjAct_inv, inv_inv] using h x⁻¹
 
 end Group
 
@@ -414,13 +476,13 @@ theorem mem_inv_pointwise_smul_iff₀ {a : α} (ha : a ≠ 0) (S : Subgroup G) (
 @[simp]
 theorem pointwise_smul_le_pointwise_smul_iff₀ {a : α} (ha : a ≠ 0) {S T : Subgroup G} :
     a • S ≤ a • T ↔ S ≤ T :=
-  set_smul_subset_set_smul_iff₀ ha
+  smul_set_subset_smul_set_iff₀ ha
 
 theorem pointwise_smul_le_iff₀ {a : α} (ha : a ≠ 0) {S T : Subgroup G} : a • S ≤ T ↔ S ≤ a⁻¹ • T :=
-  set_smul_subset_iff₀ ha
+  smul_set_subset_iff₀ ha
 
 theorem le_pointwise_smul_iff₀ {a : α} (ha : a ≠ 0) {S T : Subgroup G} : S ≤ a • T ↔ a⁻¹ • S ≤ T :=
-  subset_set_smul_iff₀ ha
+  subset_smul_set_iff₀ ha
 
 end GroupWithZero
 
@@ -492,13 +554,13 @@ theorem mem_inv_pointwise_smul_iff {a : α} {S : AddSubgroup A} {x : A} : x ∈ 
 @[simp]
 theorem pointwise_smul_le_pointwise_smul_iff {a : α} {S T : AddSubgroup A} :
     a • S ≤ a • T ↔ S ≤ T :=
-  set_smul_subset_set_smul_iff
+  smul_set_subset_smul_set_iff
 
 theorem pointwise_smul_le_iff {a : α} {S T : AddSubgroup A} : a • S ≤ T ↔ S ≤ a⁻¹ • T :=
-  set_smul_subset_iff
+  smul_set_subset_iff_subset_inv_smul_set
 
 theorem le_pointwise_smul_iff {a : α} {S T : AddSubgroup A} : S ≤ a • T ↔ a⁻¹ • S ≤ T :=
-  subset_set_smul_iff
+  subset_smul_set_iff
 
 end Group
 
@@ -524,16 +586,44 @@ theorem mem_inv_pointwise_smul_iff₀ {a : α} (ha : a ≠ 0) (S : AddSubgroup A
 @[simp]
 theorem pointwise_smul_le_pointwise_smul_iff₀ {a : α} (ha : a ≠ 0) {S T : AddSubgroup A} :
     a • S ≤ a • T ↔ S ≤ T :=
-  set_smul_subset_set_smul_iff₀ ha
+  smul_set_subset_smul_set_iff₀ ha
 
 theorem pointwise_smul_le_iff₀ {a : α} (ha : a ≠ 0) {S T : AddSubgroup A} :
     a • S ≤ T ↔ S ≤ a⁻¹ • T :=
-  set_smul_subset_iff₀ ha
+  smul_set_subset_iff₀ ha
 
 theorem le_pointwise_smul_iff₀ {a : α} (ha : a ≠ 0) {S T : AddSubgroup A} :
     S ≤ a • T ↔ a⁻¹ • S ≤ T :=
-  subset_set_smul_iff₀ ha
+  subset_smul_set_iff₀ ha
 
 end GroupWithZero
+
+section Semiring
+variable {R M : Type*} [Semiring R] [AddCommGroup M] [Module R M]
+
+@[simp] protected lemma zero_smul (s : AddSubgroup M) : (0 : R) • s = ⊥ := by
+  simp [eq_bot_iff_forall, pointwise_smul_def]
+
+end Semiring
+
+section Mul
+
+variable {R : Type*} [NonUnitalNonAssocRing R]
+
+/-- For additive subgroups `S` and `T` of a ring, the product of `S` and `T` as submonoids
+is automatically a subgroup, which we define as the product of `S` and `T` as subgroups. -/
+protected def mul : Mul (AddSubgroup R) where
+  mul M N :=
+  { __ := M.toAddSubmonoid * N.toAddSubmonoid
+    neg_mem' := fun h ↦ AddSubmonoid.mul_induction_on h
+      (fun m hm n hn ↦ by rw [← neg_mul]; exact AddSubmonoid.mul_mem_mul (M.neg_mem hm) hn)
+      fun r₁ r₂ h₁ h₂ ↦ by rw [neg_add]; exact (M.1 * N.1).add_mem h₁ h₂ }
+
+scoped[Pointwise] attribute [instance] AddSubgroup.mul
+
+theorem mul_toAddSubmonoid (M N : AddSubgroup R) :
+    (M * N).toAddSubmonoid = M.toAddSubmonoid * N.toAddSubmonoid := rfl
+
+end Mul
 
 end AddSubgroup

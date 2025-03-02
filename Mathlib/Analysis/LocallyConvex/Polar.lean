@@ -3,7 +3,7 @@ Copyright (c) 2022 Moritz Doll. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Moritz Doll, Kalle Kytölä
 -/
-import Mathlib.Analysis.Normed.Field.Basic
+import Mathlib.Analysis.Normed.Module.Basic
 import Mathlib.LinearAlgebra.SesquilinearForm
 import Mathlib.Topology.Algebra.Module.WeakBilin
 
@@ -34,7 +34,6 @@ any bilinear form `B : E →ₗ[𝕜] F →ₗ[𝕜] 𝕜`, where `𝕜` is a no
 polar
 -/
 
-
 variable {𝕜 E F : Type*}
 
 open Topology
@@ -60,9 +59,21 @@ theorem polar_mem_iff (s : Set E) (y : F) : y ∈ B.polar s ↔ ∀ x ∈ s, ‖
 theorem polar_mem (s : Set E) (y : F) (hy : y ∈ B.polar s) : ∀ x ∈ s, ‖B x y‖ ≤ 1 :=
   hy
 
+theorem polar_eq_biInter_preimage (s : Set E) :
+    B.polar s = ⋂ x ∈ s, ((B x) ⁻¹' Metric.closedBall (0 : 𝕜) 1) := by aesop
+
+theorem polar_isClosed (s : Set E) : IsClosed (X := WeakBilin B.flip) (B.polar s) := by
+  rw [polar_eq_biInter_preimage]
+  exact isClosed_biInter
+    fun _ _ ↦ Metric.isClosed_closedBall.preimage (WeakBilin.eval_continuous B.flip _)
+
 @[simp]
 theorem zero_mem_polar (s : Set E) : (0 : F) ∈ B.polar s := fun _ _ => by
   simp only [map_zero, norm_zero, zero_le_one]
+
+theorem polar_nonempty (s : Set E) : Set.Nonempty (B.polar s) := by
+  use 0
+  exact zero_mem_polar B s
 
 theorem polar_eq_iInter {s : Set E} : B.polar s = ⋂ x ∈ s, { y : F | ‖B x y‖ ≤ 1 } := by
   ext
@@ -136,7 +147,7 @@ variable (B : E →ₗ[𝕜] F →ₗ[𝕜] 𝕜)
 theorem polar_univ (h : SeparatingRight B) : B.polar Set.univ = {(0 : F)} := by
   rw [Set.eq_singleton_iff_unique_mem]
   refine ⟨by simp only [zero_mem_polar], fun y hy => h _ fun x => ?_⟩
-  refine norm_le_zero_iff.mp (le_of_forall_le_of_dense fun ε hε => ?_)
+  refine norm_le_zero_iff.mp (le_of_forall_gt_imp_ge_of_dense fun ε hε => ?_)
   rcases NormedField.exists_norm_lt 𝕜 hε with ⟨c, hc, hcε⟩
   calc
     ‖B x y‖ = ‖c‖ * ‖B (c⁻¹ • x) y‖ := by

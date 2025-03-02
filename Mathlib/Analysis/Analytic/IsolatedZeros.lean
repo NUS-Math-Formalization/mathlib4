@@ -1,32 +1,40 @@
 /-
 Copyright (c) 2022 Vincent Beffara. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Vincent Beffara
+Authors: Vincent Beffara, Stefan Kebekus
 -/
 import Mathlib.Analysis.Analytic.Constructions
-import Mathlib.Analysis.Calculus.Dslope
+import Mathlib.Analysis.Calculus.DSlope
 import Mathlib.Analysis.Calculus.FDeriv.Analytic
 import Mathlib.Analysis.Analytic.Uniqueness
+import Mathlib.Order.Filter.EventuallyConst
+import Mathlib.Topology.Perfect
 
 /-!
 # Principle of isolated zeros
 
 This file proves the fact that the zeros of a non-constant analytic function of one variable are
-isolated. It also introduces a little bit of API in the `HasFPowerSeriesAt` namespace that is
-useful in this setup.
+isolated. It also introduces a little bit of API in the `HasFPowerSeriesAt` namespace that is useful
+in this setup.
 
 ## Main results
 
 * `AnalyticAt.eventually_eq_zero_or_eventually_ne_zero` is the main statement that if a function is
   analytic at `z₀`, then either it is identically zero in a neighborhood of `z₀`, or it does not
   vanish in a punctured neighborhood of `z₀`.
-* `AnalyticOn.eqOn_of_preconnected_of_frequently_eq` is the identity theorem for analytic
+* `AnalyticOnNhd.eqOn_of_preconnected_of_frequently_eq` is the identity theorem for analytic
   functions: if a function `f` is analytic on a connected set `U` and is zero on a set with an
   accumulation point in `U` then `f` is identically `0` on `U`.
+
+## Applications
+
+* Vanishing of products of analytic functions, `eq_zero_or_eq_zero_of_smul_eq_zero`: If `f, g` are
+  analytic on a neighbourhood of the preconnected open set `U`, and `f • g = 0` on `U`, then either
+  `f = 0` on `U` or `g = 0` on `U`.
+* Preimages of codiscrete sets, `AnalyticOnNhd.preimage_mem_codiscreteWithin`: if `f` is analytic
+  on a neighbourhood of `U` and not locally constant, then the preimage of any subset codiscrete
+  within `f '' U` is codiscrete within `U`.
 -/
-
-
-open scoped Classical
 
 open Filter Function Nat FormalMultilinearSeries EMetric Set
 
@@ -192,36 +200,9 @@ theorem exists_eventuallyEq_pow_smul_nonzero_iff (hf : AnalyticAt 𝕜 f z₀) :
       hp.iterate_dslope_fslope_ne_zero (hf_ne.imp hp.locally_zero_iff.mpr),
       hp.eq_pow_order_mul_iterate_dslope⟩
 
-/-- The order of vanishing of `f` at `z₀`, as an element of `ℕ∞`.
-
-This is defined to be `∞` if `f` is identically 0 on a neighbourhood of `z₀`, and otherwise the
-unique `n` such that `f z = (z - z₀) ^ n • g z` with `g` analytic and non-vanishing at `z₀`. See
-`AnalyticAt.order_eq_top_iff` and `AnalyticAt.order_eq_nat_iff` for these equivalences. -/
-noncomputable def order (hf : AnalyticAt 𝕜 f z₀) : ENat :=
-  if h : ∀ᶠ z in 𝓝 z₀, f z = 0 then ⊤
-  else ↑(hf.exists_eventuallyEq_pow_smul_nonzero_iff.mpr h).choose
-
-lemma order_eq_top_iff (hf : AnalyticAt 𝕜 f z₀) : hf.order = ⊤ ↔ ∀ᶠ z in 𝓝 z₀, f z = 0 := by
-  unfold order
-  split_ifs with h
-  · rwa [eq_self, true_iff]
-  · simpa only [ne_eq, ENat.coe_ne_top, false_iff] using h
-
-lemma order_eq_nat_iff (hf : AnalyticAt 𝕜 f z₀) (n : ℕ) : hf.order = ↑n ↔
-    ∃ (g : 𝕜 → E), AnalyticAt 𝕜 g z₀ ∧ g z₀ ≠ 0 ∧ ∀ᶠ z in 𝓝 z₀, f z = (z - z₀) ^ n • g z := by
-  unfold order
-  split_ifs with h
-  · simp only [ENat.top_ne_coe, false_iff]
-    contrapose! h
-    rw [← hf.exists_eventuallyEq_pow_smul_nonzero_iff]
-    exact ⟨n, h⟩
-  · rw [← hf.exists_eventuallyEq_pow_smul_nonzero_iff] at h
-    refine ⟨fun hn ↦ (WithTop.coe_inj.mp hn : h.choose = n) ▸ h.choose_spec, fun h' ↦ ?_⟩
-    rw [unique_eventuallyEq_pow_smul_nonzero h.choose_spec h']
-
 end AnalyticAt
 
-namespace AnalyticOn
+namespace AnalyticOnNhd
 
 variable {U : Set 𝕜}
 
@@ -229,13 +210,22 @@ variable {U : Set 𝕜}
 analytic on a connected set `U` and vanishes in arbitrary neighborhoods of a point `z₀ ∈ U`, then
 it is identically zero in `U`.
 For higher-dimensional versions requiring that the function vanishes in a neighborhood of `z₀`,
-see `AnalyticOn.eqOn_zero_of_preconnected_of_eventuallyEq_zero`. -/
-theorem eqOn_zero_of_preconnected_of_frequently_eq_zero (hf : AnalyticOn 𝕜 f U)
+see `AnalyticOnNhd.eqOn_zero_of_preconnected_of_eventuallyEq_zero`. -/
+theorem eqOn_zero_of_preconnected_of_frequently_eq_zero (hf : AnalyticOnNhd 𝕜 f U)
     (hU : IsPreconnected U) (h₀ : z₀ ∈ U) (hfw : ∃ᶠ z in 𝓝[≠] z₀, f z = 0) : EqOn f 0 U :=
   hf.eqOn_zero_of_preconnected_of_eventuallyEq_zero hU h₀
     ((hf z₀ h₀).frequently_zero_iff_eventually_zero.1 hfw)
 
-theorem eqOn_zero_of_preconnected_of_mem_closure (hf : AnalyticOn 𝕜 f U) (hU : IsPreconnected U)
+theorem eqOn_zero_or_eventually_ne_zero_of_preconnected (hf : AnalyticOnNhd 𝕜 f U)
+    (hU : IsPreconnected U) : EqOn f 0 U ∨ ∀ᶠ x in codiscreteWithin U, f x ≠ 0 := by
+  simp only [or_iff_not_imp_right, ne_eq, eventually_iff, mem_codiscreteWithin,
+    disjoint_principal_right, not_forall]
+  rintro ⟨x, hx, hx2⟩
+  refine hf.eqOn_zero_of_preconnected_of_frequently_eq_zero hU hx fun nh ↦ hx2 ?_
+  filter_upwards [nh] with a ha
+  simp_all
+
+theorem eqOn_zero_of_preconnected_of_mem_closure (hf : AnalyticOnNhd 𝕜 f U) (hU : IsPreconnected U)
     (h₀ : z₀ ∈ U) (hfz₀ : z₀ ∈ closure ({z | f z = 0} \ {z₀})) : EqOn f 0 U :=
   hf.eqOn_zero_of_preconnected_of_frequently_eq_zero hU h₀
     (mem_closure_ne_iff_frequently_within.mp hfz₀)
@@ -244,15 +234,21 @@ theorem eqOn_zero_of_preconnected_of_mem_closure (hf : AnalyticOn 𝕜 f U) (hU 
 analytic on a connected set `U` and coincide at points which accumulate to a point `z₀ ∈ U`, then
 they coincide globally in `U`.
 For higher-dimensional versions requiring that the functions coincide in a neighborhood of `z₀`,
-see `AnalyticOn.eqOn_of_preconnected_of_eventuallyEq`. -/
-theorem eqOn_of_preconnected_of_frequently_eq (hf : AnalyticOn 𝕜 f U) (hg : AnalyticOn 𝕜 g U)
+see `AnalyticOnNhd.eqOn_of_preconnected_of_eventuallyEq`. -/
+theorem eqOn_of_preconnected_of_frequently_eq (hf : AnalyticOnNhd 𝕜 f U) (hg : AnalyticOnNhd 𝕜 g U)
     (hU : IsPreconnected U) (h₀ : z₀ ∈ U) (hfg : ∃ᶠ z in 𝓝[≠] z₀, f z = g z) : EqOn f g U := by
   have hfg' : ∃ᶠ z in 𝓝[≠] z₀, (f - g) z = 0 :=
     hfg.mono fun z h => by rw [Pi.sub_apply, h, sub_self]
   simpa [sub_eq_zero] using fun z hz =>
     (hf.sub hg).eqOn_zero_of_preconnected_of_frequently_eq_zero hU h₀ hfg' hz
 
-theorem eqOn_of_preconnected_of_mem_closure (hf : AnalyticOn 𝕜 f U) (hg : AnalyticOn 𝕜 g U)
+theorem eqOn_or_eventually_ne_of_preconnected (hf : AnalyticOnNhd 𝕜 f U) (hg : AnalyticOnNhd 𝕜 g U)
+    (hU : IsPreconnected U) : EqOn f g U ∨ ∀ᶠ x in codiscreteWithin U, f x ≠ g x :=
+  (eqOn_zero_or_eventually_ne_zero_of_preconnected (hf.sub hg) hU).imp
+    (fun h _ hx ↦ eq_of_sub_eq_zero (h hx))
+    (by simp only [Pi.sub_apply, ne_eq, sub_eq_zero, imp_self])
+
+theorem eqOn_of_preconnected_of_mem_closure (hf : AnalyticOnNhd 𝕜 f U) (hg : AnalyticOnNhd 𝕜 g U)
     (hU : IsPreconnected U) (h₀ : z₀ ∈ U) (hfg : z₀ ∈ closure ({z | f z = g z} \ {z₀})) :
     EqOn f g U :=
   hf.eqOn_of_preconnected_of_frequently_eq hg hU h₀ (mem_closure_ne_iff_frequently_within.mp hfg)
@@ -261,10 +257,116 @@ theorem eqOn_of_preconnected_of_mem_closure (hf : AnalyticOn 𝕜 f U) (hg : Ana
 field `𝕜` are analytic everywhere and coincide at points which accumulate to a point `z₀`, then
 they coincide globally.
 For higher-dimensional versions requiring that the functions coincide in a neighborhood of `z₀`,
-see `AnalyticOn.eq_of_eventuallyEq`. -/
-theorem eq_of_frequently_eq [ConnectedSpace 𝕜] (hf : AnalyticOn 𝕜 f univ) (hg : AnalyticOn 𝕜 g univ)
-    (hfg : ∃ᶠ z in 𝓝[≠] z₀, f z = g z) : f = g :=
+see `AnalyticOnNhd.eq_of_eventuallyEq`. -/
+theorem eq_of_frequently_eq [ConnectedSpace 𝕜] (hf : AnalyticOnNhd 𝕜 f univ)
+    (hg : AnalyticOnNhd 𝕜 g univ) (hfg : ∃ᶠ z in 𝓝[≠] z₀, f z = g z) : f = g :=
   funext fun x =>
     eqOn_of_preconnected_of_frequently_eq hf hg isPreconnected_univ (mem_univ z₀) hfg (mem_univ x)
 
-end AnalyticOn
+@[deprecated (since := "2024-09-26")]
+alias _root_.AnalyticOn.eq_of_frequently_eq := eq_of_frequently_eq
+
+section Mul
+/-!
+### Vanishing of products of analytic functions
+-/
+
+variable {A : Type*} [NormedRing A] [NormedAlgebra 𝕜 A]
+  {B : Type*} [NormedAddCommGroup B] [NormedSpace 𝕜 B] [Module A B]
+
+/-- If `f, g` are analytic on a neighbourhood of the preconnected open set `U`, and `f • g = 0`
+on `U`, then either `f = 0` on `U` or `g = 0` on `U`. -/
+lemma eq_zero_or_eq_zero_of_smul_eq_zero [NoZeroSMulDivisors A B]
+    {f : 𝕜 → A} {g : 𝕜 → B} (hf : AnalyticOnNhd 𝕜 f U) (hg : AnalyticOnNhd 𝕜 g U)
+    (hfg : ∀ z ∈ U, f z • g z = 0) (hU : IsPreconnected U) :
+    (∀ z ∈ U, f z = 0) ∨ (∀ z ∈ U, g z = 0) := by
+  -- We want to apply `IsPreconnected.preperfect_of_nontrivial` which requires `U` to have at least
+  -- two elements. So we need to dispose of the cases `#U = 0` and `#U = 1` first.
+  by_cases hU' : U = ∅
+  · simp [hU']
+  obtain ⟨z, hz⟩ : ∃ z, z ∈ U := nonempty_iff_ne_empty.mpr hU'
+  by_cases hU'' : U = {z}
+  · simpa [hU''] using hfg z hz
+  apply (nontrivial_iff_ne_singleton hz).mpr at hU''
+  -- Now connectedness implies that `z` is an accumulation point of `U`, so at least one of
+  -- `f` and `g` must vanish frequently in a neighbourhood of `z`.
+  have : ∃ᶠ w in 𝓝[≠] z, w ∈ U :=
+    frequently_mem_iff_neBot.mpr <| hU.preperfect_of_nontrivial hU'' z hz
+  have : ∃ᶠ w in 𝓝[≠] z, f w = 0 ∨ g w = 0 :=
+    this.mp <| by filter_upwards with w hw using smul_eq_zero.mp (hfg w hw)
+  cases frequently_or_distrib.mp this with
+  | inl h => exact Or.inl <| hf.eqOn_zero_of_preconnected_of_frequently_eq_zero hU hz h
+  | inr h => exact Or.inr <| hg.eqOn_zero_of_preconnected_of_frequently_eq_zero hU hz h
+
+/-- If `f, g` are analytic on a neighbourhood of the preconnected open set `U`, and `f * g = 0`
+on `U`, then either `f = 0` on `U` or `g = 0` on `U`. -/
+lemma eq_zero_or_eq_zero_of_mul_eq_zero [NoZeroDivisors A]
+    {f g : 𝕜 → A} (hf : AnalyticOnNhd 𝕜 f U) (hg : AnalyticOnNhd 𝕜 g U)
+    (hfg : ∀ z ∈ U, f z * g z = 0) (hU : IsPreconnected U) :
+    (∀ z ∈ U, f z = 0) ∨ (∀ z ∈ U, g z = 0) :=
+  eq_zero_or_eq_zero_of_smul_eq_zero hf hg hfg hU
+
+end Mul
+end AnalyticOnNhd
+
+/-!
+### Preimages of codiscrete sets
+-/
+
+section PreimgCodiscrete
+
+/-- Preimages of codiscrete sets, local version: if `f` is analytic at `x` and not locally constant,
+then the preimage of any punctured neighbourhood of `f x` is a punctured neighbourhood of `x`. -/
+theorem AnalyticAt.preimage_of_nhdsNE {x : 𝕜} {f : 𝕜 → E} {s : Set E} (hfx : AnalyticAt 𝕜 f x)
+    (h₂f : ¬EventuallyConst f (𝓝 x)) (hs : s ∈ 𝓝[≠] f x) :
+    f ⁻¹' s ∈ 𝓝[≠] x := by
+  have : ∀ᶠ (z : 𝕜) in 𝓝 x, f z ∈ insert (f x) s := by
+    filter_upwards [hfx.continuousAt.preimage_mem_nhds (insert_mem_nhds_iff.2 hs)]
+    tauto
+  contrapose! h₂f with h
+  rw [eventuallyConst_iff_exists_eventuallyEq]
+  use f x
+  rw [EventuallyEq, ← hfx.frequently_eq_iff_eventually_eq analyticAt_const]
+  apply ((frequently_imp_distrib_right.2 h).and_eventually
+    (eventually_nhdsWithin_of_eventually_nhds this)).mono
+  intro z ⟨h₁z, h₂z⟩
+  rw [Set.mem_insert_iff] at h₂z
+  tauto
+
+/-- Preimages of codiscrete sets, local filter version: if `f` is analytic at `x` and not locally
+constant, then the push-forward of the punctured neighbourhood filter `𝓝[≠] x` is less than or
+equal to the punctured neighbourhood filter `𝓝[≠] f x`. -/
+theorem AnalyticAt.map_nhdsNE {x : 𝕜} {f : 𝕜 → E} (hfx : AnalyticAt 𝕜 f x)
+    (h₂f : ¬EventuallyConst f (𝓝 x)) :
+    (𝓝[≠] x).map f ≤ (𝓝[≠] f x) := fun _ hs ↦ mem_map.1 (preimage_of_nhdsNE hfx h₂f hs)
+
+/-- Preimages of codiscrete sets: if `f` is analytic on a neighbourhood of `U` and not locally
+constant, then the preimage of any subset codiscrete within `f '' U` is codiscrete within `U`.
+
+Applications might want to use the theorem `Filter.codiscreteWithin.mono`.
+-/
+theorem AnalyticOnNhd.preimage_mem_codiscreteWithin {U : Set 𝕜} {s : Set E} {f : 𝕜 → E}
+    (hfU : AnalyticOnNhd 𝕜 f U) (h₂f : ∀ x ∈ U, ¬EventuallyConst f (𝓝 x))
+    (hs : s ∈ codiscreteWithin (f '' U)) :
+    f ⁻¹' s ∈ codiscreteWithin U := by
+  simp_rw [mem_codiscreteWithin, disjoint_principal_right, Set.compl_diff] at *
+  intro x hx
+  apply mem_of_superset ((hfU x hx).preimage_of_nhdsNE (h₂f x hx) (hs (f x) (by tauto)))
+  rw [preimage_union, preimage_compl]
+  apply union_subset_union_right (f ⁻¹' s)
+  intro x hx
+  simp only [mem_compl_iff, mem_preimage, mem_image, not_exists, not_and] at hx ⊢
+  tauto
+
+/-- Preimages of codiscrete sets, filter version: if `f` is analytic on a neighbourhood of `U` and
+not locally constant, then the push-forward of the filter of sets codiscrete within `U` is less
+than or equal to the filter of sets codiscrete within `f '' U`.
+
+Applications might want to use the theorem `Filter.codiscreteWithin.mono`.
+-/
+theorem AnalyticOnNhd.map_codiscreteWithin {U : Set 𝕜} {f : 𝕜 → E}
+    (hfU : AnalyticOnNhd 𝕜 f U) (h₂f : ∀ x ∈ U, ¬EventuallyConst f (𝓝 x)) :
+    map f (codiscreteWithin U) ≤ (codiscreteWithin (f '' U)) :=
+  fun _ hs ↦ mem_map.1 (preimage_mem_codiscreteWithin hfU h₂f hs)
+
+end PreimgCodiscrete

@@ -5,8 +5,11 @@ Authors: Yaël Dillies, Bhavik Mehta
 -/
 import Mathlib.Algebra.Algebra.Rat
 import Mathlib.Algebra.BigOperators.GroupWithZero.Action
-import Mathlib.Algebra.BigOperators.Ring
+import Mathlib.Algebra.BigOperators.Pi
+import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Group.Pointwise.Finset.Basic
+import Mathlib.Algebra.Module.Pi
+import Mathlib.Data.Finset.Density
 import Mathlib.Data.Fintype.BigOperators
 
 /-!
@@ -37,7 +40,7 @@ combination operator.
 ## TODO
 
 * Connect `Finset.expect` with the expectation over `s` in the probability theory sense.
-* Give a formulation of Jensen's inequality and the Cauchy-Schwarz inequality in this language.
+* Give a formulation of Jensen's inequality in this language.
 -/
 
 open Finset Function
@@ -50,7 +53,7 @@ local notation a " /ℚ " q => (q : ℚ≥0)⁻¹ • a
 
 /-- Average of a function over a finset. If the finset is empty, this is equal to zero. -/
 def Finset.expect [AddCommMonoid M] [Module ℚ≥0 M] (s : Finset ι) (f : ι → M) : M :=
-  (s.card : ℚ≥0)⁻¹ • ∑ i ∈ s, f i
+  (#s : ℚ≥0)⁻¹ • ∑ i ∈ s, f i
 
 namespace BigOperators
 open Batteries.ExtendedBinder Lean Meta
@@ -82,7 +85,7 @@ open Batteries.ExtendedBinder
 
 /-- Delaborator for `Finset.expect`. The `pp.piBinderTypes` option controls whether
 to show the domain type when the expect is over `Finset.univ`. -/
-@[scoped delab app.Finset.expect] def delabFinsetExpect : Delab :=
+@[scoped app_delab Finset.expect] def delabFinsetExpect : Delab :=
   whenPPOption getPPNotation <| withOverApp 6 <| do
   let #[_, _, _, _, s, f] := (← getExpr).getAppArgs | failure
   guard <| f.isLambda
@@ -98,7 +101,7 @@ to show the domain type when the expect is over `Finset.univ`. -/
         `(bigOpBinder| $(.mk i):ident)
     `(𝔼 $binder:bigOpBinder, $body)
   else
-    let ss ← withNaryArg 3 <| delab
+    let ss ← withNaryArg 4 <| delab
     `(𝔼 $(.mk i):ident ∈ $ss, $body)
 
 end BigOperators
@@ -108,7 +111,7 @@ open scoped BigOperators
 namespace Finset
 section AddCommMonoid
 variable [AddCommMonoid M] [Module ℚ≥0 M] [AddCommMonoid N] [Module ℚ≥0 N] {s t : Finset ι}
-  {f g : ι → M} {m : N → M} {p q : ι → Prop} [DecidablePred p] [DecidablePred q]
+  {f g : ι → M} {p q : ι → Prop} [DecidablePred p] [DecidablePred q]
 
 lemma expect_univ [Fintype ι] : 𝔼 i, f i = (∑ i, f i) /ℚ Fintype.card ι := by
   rw [expect, card_univ]
@@ -149,30 +152,36 @@ lemma expect_add_expect_comm (f₁ f₂ g₁ g₂ : ι → M) :
   simp_rw [expect_add_distrib, add_add_add_comm]
 
 lemma expect_eq_single_of_mem (i : ι) (hi : i ∈ s) (h : ∀ j ∈ s, j ≠ i → f j = 0) :
-    𝔼 i ∈ s, f i = f i /ℚ s.card := by rw [expect, sum_eq_single_of_mem _ hi h]
+    𝔼 i ∈ s, f i = f i /ℚ #s := by rw [expect, sum_eq_single_of_mem _ hi h]
 
 lemma expect_ite_zero (s : Finset ι) (p : ι → Prop) [DecidablePred p]
     (h : ∀ i ∈ s, ∀ j ∈ s, p i → p j → i = j) (a : M) :
-    𝔼 i ∈ s, ite (p i) a 0 = ite (∃ i ∈ s, p i) (a /ℚ s.card) 0 := by
+    𝔼 i ∈ s, ite (p i) a 0 = ite (∃ i ∈ s, p i) (a /ℚ #s) 0 := by
   split_ifs <;> simp [expect, sum_ite_zero _ _ h, *]
 
 section DecidableEq
 variable [DecidableEq ι]
 
+lemma expect_ite_mem (s t : Finset ι) (f : ι → M) :
+    𝔼 i ∈ s, (if i ∈ t then f i else 0) = (#(s ∩ t) / #s : ℚ≥0) • 𝔼 i ∈ s ∩ t, f i := by
+  obtain hst | hst := (s ∩ t).eq_empty_or_nonempty
+  · simp [expect, hst]
+  · simp [expect, smul_smul, ← inv_mul_eq_div, hst.card_ne_zero]
+
 @[simp] lemma expect_dite_eq (i : ι) (f : ∀ j, i = j → M) :
-    𝔼 j ∈ s, (if h : i = j then f j h else 0) = if i ∈ s then f i rfl /ℚ s.card else 0 := by
+    𝔼 j ∈ s, (if h : i = j then f j h else 0) = if i ∈ s then f i rfl /ℚ #s else 0 := by
   split_ifs <;> simp [expect, *]
 
 @[simp] lemma expect_dite_eq' (i : ι) (f : ∀ j, j = i → M) :
-    𝔼 j ∈ s, (if h : j = i then f j h else 0) = if i ∈ s then f i rfl /ℚ s.card else 0 := by
+    𝔼 j ∈ s, (if h : j = i then f j h else 0) = if i ∈ s then f i rfl /ℚ #s else 0 := by
   split_ifs <;> simp [expect, *]
 
 @[simp] lemma expect_ite_eq (i : ι) (f : ι → M) :
-    𝔼 j ∈ s, (if i = j then f j else 0) = if i ∈ s then f i /ℚ s.card else 0 := by
+    𝔼 j ∈ s, (if i = j then f j else 0) = if i ∈ s then f i /ℚ #s else 0 := by
   split_ifs <;> simp [expect, *]
 
 @[simp] lemma expect_ite_eq' (i : ι) (f : ι → M) :
-    𝔼 j ∈ s, (if j = i then f j else 0) = if i ∈ s then f i /ℚ s.card else 0 := by
+    𝔼 j ∈ s, (if j = i then f j else 0) = if i ∈ s then f i /ℚ #s else 0 := by
   split_ifs <;> simp [expect, *]
 
 end DecidableEq
@@ -270,7 +279,7 @@ lemma _root_.map_expect {F : Type*} [FunLike F M N] [LinearMapClass F ℚ≥0 M 
     g (𝔼 i ∈ s, f i) = 𝔼 i ∈ s, g (f i) := by simp only [expect, map_smul, map_natCast, map_sum]
 
 @[simp]
-lemma card_smul_expect (s : Finset ι) (f : ι → M) : s.card • 𝔼 i ∈ s, f i = ∑ i ∈ s, f i := by
+lemma card_smul_expect (s : Finset ι) (f : ι → M) : #s • 𝔼 i ∈ s, f i = ∑ i ∈ s, f i := by
   obtain rfl | hs := s.eq_empty_or_nonempty
   · simp
   · rw [expect, ← Nat.cast_smul_eq_nsmul ℚ≥0, smul_inv_smul₀]
@@ -290,7 +299,7 @@ lemma smul_expect {G : Type*} [DistribSMul G M] [SMulCommClass G ℚ≥0 M] (a :
 end AddCommMonoid
 
 section AddCommGroup
-variable [AddCommGroup M] [Module ℚ≥0 M] [Field N] [Module ℚ≥0 N] {s : Finset ι}
+variable [AddCommGroup M] [Module ℚ≥0 M]
 
 lemma expect_sub_distrib (s : Finset ι) (f g : ι → M) :
     𝔼 i ∈ s, (f i - g i) = 𝔼 i ∈ s, f i - 𝔼 i ∈ s, g i := by
@@ -303,10 +312,10 @@ lemma expect_neg_distrib (s : Finset ι) (f : ι → M) : 𝔼 i ∈ s, -f i = -
 end AddCommGroup
 
 section Semiring
-variable [Semiring M] [Module ℚ≥0 M] {s : Finset ι} {f g : ι → M} {m : N → M}
+variable [Semiring M] [Module ℚ≥0 M]
 
 @[simp] lemma card_mul_expect (s : Finset ι) (f : ι → M) :
-    s.card * 𝔼 i ∈ s, f i = ∑ i ∈ s, f i := by rw [← nsmul_eq_mul, card_smul_expect]
+    #s * 𝔼 i ∈ s, f i = ∑ i ∈ s, f i := by rw [← nsmul_eq_mul, card_smul_expect]
 
 @[simp] lemma _root_.Fintype.card_mul_expect [Fintype ι] (f : ι → M) :
     Fintype.card ι * 𝔼 i, f i = ∑ i, f i := Finset.card_mul_expect _ _
@@ -335,7 +344,7 @@ lemma expect_pow (s : Finset ι) (f : ι → M) (n : ℕ) :
 end CommSemiring
 
 section Semifield
-variable [Semifield M] [CharZero M] {s : Finset ι} {f g : ι → M} {m : N → M}
+variable [Semifield M] [CharZero M]
 
 lemma expect_boole_mul [Fintype ι] [Nonempty ι] [DecidableEq ι] (f : ι → M) (i : ι) :
     𝔼 j, ite (i = j) (Fintype.card ι : M) 0 * f j = f i := by
@@ -348,7 +357,7 @@ lemma expect_boole_mul' [Fintype ι] [Nonempty ι] [DecidableEq ι] (f : ι → 
   simp_rw [@eq_comm _ _ i, expect_boole_mul]
 
 lemma expect_eq_sum_div_card (s : Finset ι) (f : ι → M) :
-    𝔼 i ∈ s, f i = (∑ i ∈ s, f i) / s.card := by
+    𝔼 i ∈ s, f i = (∑ i ∈ s, f i) / #s := by
   rw [expect, NNRat.smul_def, div_eq_inv_mul, NNRat.cast_inv, NNRat.cast_natCast]
 
 lemma _root_.Fintype.expect_eq_sum_div_card [Fintype ι] (f : ι → M) :
@@ -358,6 +367,11 @@ lemma expect_div (s : Finset ι) (f : ι → M) (a : M) : (𝔼 i ∈ s, f i) / 
   simp_rw [div_eq_mul_inv, expect_mul]
 
 end Semifield
+
+@[simp] lemma expect_apply {α : Type*} {π : α → Type*} [∀ a, CommSemiring (π a)]
+    [∀ a, Module ℚ≥0 (π a)] (s : Finset ι) (f : ι → ∀ a, π a) (a : α) :
+    (𝔼 i ∈ s, f i) a = 𝔼 i ∈ s, f i a := by simp [expect]
+
 end Finset
 
 namespace algebraMap
@@ -373,7 +387,7 @@ namespace Fintype
 variable [Fintype ι] [Fintype κ]
 
 section AddCommMonoid
-variable [AddCommMonoid M] [Module ℚ≥0 M] {f : ι → M}
+variable [AddCommMonoid M] [Module ℚ≥0 M]
 
 /-- `Fintype.expect_bijective` is a variant of `Finset.expect_bij` that accepts
 `Function.Bijective`.
@@ -395,28 +409,36 @@ lemma expect_const [Nonempty ι] (a : M) : 𝔼 _i : ι, a = a := Finset.expect_
 
 lemma expect_ite_zero (p : ι → Prop) [DecidablePred p] (h : ∀ i j, p i → p j → i = j) (a : M) :
     𝔼 i, ite (p i) a 0 = ite (∃ i, p i) (a /ℚ Fintype.card ι) 0 := by
-  simp [univ.expect_ite_zero p (by simpa using h), card_univ]
+  simp [univ.expect_ite_zero p (by simpa using h)]
 
 variable [DecidableEq ι]
 
+@[simp] lemma expect_ite_mem (s : Finset ι) (f : ι → M) :
+    𝔼 i, (if i ∈ s then f i else 0) = s.dens • 𝔼 i ∈ s, f i := by
+  simp [Finset.expect_ite_mem, dens]
+
 lemma expect_dite_eq (i : ι) (f : ∀ j, i = j → M) :
-    𝔼 j, (if h : i = j then f j h else 0) = f i rfl /ℚ card ι := by simp [card_univ]
+    𝔼 j, (if h : i = j then f j h else 0) = f i rfl /ℚ card ι := by simp
 
 lemma expect_dite_eq' (i : ι) (f : ∀ j, j = i → M) :
-    𝔼 j, (if h : j = i then f j h else 0) = f i rfl /ℚ card ι := by simp [card_univ]
+    𝔼 j, (if h : j = i then f j h else 0) = f i rfl /ℚ card ι := by simp
 
 lemma expect_ite_eq (i : ι) (f : ι → M) :
-    𝔼 j, (if i = j then f j else 0) = f i /ℚ card ι := by simp [card_univ]
+    𝔼 j, (if i = j then f j else 0) = f i /ℚ card ι := by simp
 
 lemma expect_ite_eq' (i : ι) (f : ι → M) :
-    𝔼 j, (if j = i then f j else 0) = f i /ℚ card ι := by simp [card_univ]
+    𝔼 j, (if j = i then f j else 0) = f i /ℚ card ι := by simp
 
 end AddCommMonoid
 
 section Semiring
 variable [Semiring M] [Module ℚ≥0 M]
 
-@[simp] lemma expect_one [Nonempty ι] : 𝔼 _i : ι, (1 : M) = 1 := expect_const _
+lemma expect_one [Nonempty ι] : 𝔼 _i : ι, (1 : M) = 1 := expect_const _
+
+lemma expect_mul_expect [IsScalarTower ℚ≥0 M M] [SMulCommClass ℚ≥0 M M] (f : ι → M)
+    (g : κ → M) : (𝔼 i, f i) * 𝔼 j, g j = 𝔼 i, 𝔼 j, f i * g j :=
+  Finset.expect_mul_expect ..
 
 end Semiring
 end Fintype

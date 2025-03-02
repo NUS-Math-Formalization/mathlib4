@@ -31,7 +31,7 @@ import Mathlib.Logic.Function.Conjugate
   and the codomain to `t`.
 -/
 
-variable {α β γ : Type*} {ι : Sort*} {π : α → Type*}
+variable {α β γ δ : Type*} {ι : Sort*} {π : α → Type*}
 
 open Equiv Equiv.Perm Function
 
@@ -166,8 +166,7 @@ end restrict
 /-! ### Equality on a set -/
 section equality
 
-variable {s s₁ s₂ : Set α} {t t₁ t₂ : Set β} {p : Set γ} {f f₁ f₂ f₃ : α → β} {g g₁ g₂ : β → γ}
-  {f' f₁' f₂' : β → α} {g' : γ → β} {a : α} {b : β}
+variable {s s₁ s₂ : Set α} {f₁ f₂ f₃ : α → β} {g : β → γ} {a : α}
 
 @[simp]
 theorem eqOn_empty (f₁ f₂ : α → β) : EqOn f₁ f₂ ∅ := fun _ => False.elim
@@ -196,7 +195,7 @@ theorem eqOn_refl (f : α → β) (s : Set α) : EqOn f f s := fun _ _ => rfl
 
 -- Note: this was formerly tagged with `@[trans]`, and although the `trans` attribute accepted it
 -- the `trans` tactic could not use it.
--- An update to the trans tactic coming in mathlib4#7014 will reject this attribute.
+-- An update to the trans tactic coming in https://github.com/leanprover-community/mathlib4/pull/7014 will reject this attribute.
 -- It can be restored by changing the argument order from `EqOn f₁ f₂ s` to `EqOn s f₁ f₂`.
 -- This change will be made separately: [zulip](https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/Reordering.20arguments.20of.20.60Set.2EEqOn.60/near/390467581).
 theorem EqOn.trans (h₁ : EqOn f₁ f₂ s) (h₂ : EqOn f₂ f₃ s) : EqOn f₁ f₃ s := fun _ hx =>
@@ -233,78 +232,7 @@ alias ⟨EqOn.comp_eq, _⟩ := eqOn_range
 
 end equality
 
-/-! ### Congruence lemmas for monotonicity and antitonicity -/
-section Order
-
-variable {s : Set α} {f₁ f₂ : α → β} [Preorder α] [Preorder β]
-
-theorem _root_.MonotoneOn.congr (h₁ : MonotoneOn f₁ s) (h : s.EqOn f₁ f₂) : MonotoneOn f₂ s := by
-  intro a ha b hb hab
-  rw [← h ha, ← h hb]
-  exact h₁ ha hb hab
-
-theorem _root_.AntitoneOn.congr (h₁ : AntitoneOn f₁ s) (h : s.EqOn f₁ f₂) : AntitoneOn f₂ s :=
-  h₁.dual_right.congr h
-
-theorem _root_.StrictMonoOn.congr (h₁ : StrictMonoOn f₁ s) (h : s.EqOn f₁ f₂) :
-    StrictMonoOn f₂ s := by
-  intro a ha b hb hab
-  rw [← h ha, ← h hb]
-  exact h₁ ha hb hab
-
-theorem _root_.StrictAntiOn.congr (h₁ : StrictAntiOn f₁ s) (h : s.EqOn f₁ f₂) : StrictAntiOn f₂ s :=
-  h₁.dual_right.congr h
-
-theorem EqOn.congr_monotoneOn (h : s.EqOn f₁ f₂) : MonotoneOn f₁ s ↔ MonotoneOn f₂ s :=
-  ⟨fun h₁ => h₁.congr h, fun h₂ => h₂.congr h.symm⟩
-
-theorem EqOn.congr_antitoneOn (h : s.EqOn f₁ f₂) : AntitoneOn f₁ s ↔ AntitoneOn f₂ s :=
-  ⟨fun h₁ => h₁.congr h, fun h₂ => h₂.congr h.symm⟩
-
-theorem EqOn.congr_strictMonoOn (h : s.EqOn f₁ f₂) : StrictMonoOn f₁ s ↔ StrictMonoOn f₂ s :=
-  ⟨fun h₁ => h₁.congr h, fun h₂ => h₂.congr h.symm⟩
-
-theorem EqOn.congr_strictAntiOn (h : s.EqOn f₁ f₂) : StrictAntiOn f₁ s ↔ StrictAntiOn f₂ s :=
-  ⟨fun h₁ => h₁.congr h, fun h₂ => h₂.congr h.symm⟩
-
-end Order
-
-/-! ### Monotonicity lemmas -/
-section Mono
-
-variable {s s₁ s₂ : Set α} {f f₁ f₂ : α → β} [Preorder α] [Preorder β]
-
-theorem _root_.MonotoneOn.mono (h : MonotoneOn f s) (h' : s₂ ⊆ s) : MonotoneOn f s₂ :=
-  fun _ hx _ hy => h (h' hx) (h' hy)
-
-theorem _root_.AntitoneOn.mono (h : AntitoneOn f s) (h' : s₂ ⊆ s) : AntitoneOn f s₂ :=
-  fun _ hx _ hy => h (h' hx) (h' hy)
-
-theorem _root_.StrictMonoOn.mono (h : StrictMonoOn f s) (h' : s₂ ⊆ s) : StrictMonoOn f s₂ :=
-  fun _ hx _ hy => h (h' hx) (h' hy)
-
-theorem _root_.StrictAntiOn.mono (h : StrictAntiOn f s) (h' : s₂ ⊆ s) : StrictAntiOn f s₂ :=
-  fun _ hx _ hy => h (h' hx) (h' hy)
-
-protected theorem _root_.MonotoneOn.monotone (h : MonotoneOn f s) :
-    Monotone (f ∘ Subtype.val : s → β) :=
-  fun x y hle => h x.coe_prop y.coe_prop hle
-
-protected theorem _root_.AntitoneOn.monotone (h : AntitoneOn f s) :
-    Antitone (f ∘ Subtype.val : s → β) :=
-  fun x y hle => h x.coe_prop y.coe_prop hle
-
-protected theorem _root_.StrictMonoOn.strictMono (h : StrictMonoOn f s) :
-    StrictMono (f ∘ Subtype.val : s → β) :=
-  fun x y hlt => h x.coe_prop y.coe_prop hlt
-
-protected theorem _root_.StrictAntiOn.strictAnti (h : StrictAntiOn f s) :
-    StrictAnti (f ∘ Subtype.val : s → β) :=
-  fun x y hlt => h x.coe_prop y.coe_prop hlt
-
-end Mono
-
-variable {s s₁ s₂ : Set α} {t t₁ t₂ : Set β} {p : Set γ} {f f₁ f₂ f₃ : α → β} {g g₁ g₂ : β → γ}
+variable {s s₁ s₂ : Set α} {t t₁ t₂ : Set β} {p : Set γ} {f f₁ f₂ : α → β} {g g₁ g₂ : β → γ}
   {f' f₁' f₂' : β → α} {g' : γ → β} {a : α} {b : β}
 
 section MapsTo
@@ -344,7 +272,7 @@ theorem MapsTo.range_restrict (f : α → β) (s : Set α) (t : Set β) (h : Map
 
 theorem mapsTo_iff_exists_map_subtype : MapsTo f s t ↔ ∃ g : s → t, ∀ x : s, f x = g x :=
   ⟨fun h => ⟨h.restrict f s t, fun _ => rfl⟩, fun ⟨g, hg⟩ x hx => by
-    erw [hg ⟨x, hx⟩]
+    rw [hg ⟨x, hx⟩]
     apply Subtype.coe_prop⟩
 
 theorem mapsTo' : MapsTo f s t ↔ f '' s ⊆ t :=
@@ -353,9 +281,9 @@ theorem mapsTo' : MapsTo f s t ↔ f '' s ⊆ t :=
 theorem mapsTo_prod_map_diagonal : MapsTo (Prod.map f f) (diagonal α) (diagonal β) :=
   diagonal_subset_iff.2 fun _ => rfl
 
-theorem MapsTo.subset_preimage {f : α → β} {s : Set α} {t : Set β} (hf : MapsTo f s t) :
-    s ⊆ f ⁻¹' t :=
-  hf
+theorem MapsTo.subset_preimage (hf : MapsTo f s t) : s ⊆ f ⁻¹' t := hf
+
+theorem mapsTo_iff_subset_preimage : MapsTo f s t ↔ s ⊆ f ⁻¹' t := Iff.rfl
 
 @[simp]
 theorem mapsTo_singleton {x : α} : MapsTo f {x} t ↔ f x ∈ t :=
@@ -456,11 +384,6 @@ theorem mapsTo_image_iff {f : α → β} {g : γ → α} {s : Set γ} {t : Set �
     MapsTo f (g '' s) t ↔ MapsTo (f ∘ g) s t :=
   ⟨fun h c hc => h ⟨c, hc, rfl⟩, fun h _ ⟨_, hc⟩ => hc.2 ▸ h hc.1⟩
 
-@[deprecated (since := "2023-12-25")]
-lemma maps_image_to (f : α → β) (g : γ → α) (s : Set γ) (t : Set β) :
-    MapsTo f (g '' s) t ↔ MapsTo (f ∘ g) s t :=
-  mapsTo_image_iff
-
 lemma MapsTo.comp_left (g : β → γ) (hf : MapsTo f s t) : MapsTo (g ∘ f) s (g '' t) :=
   fun x hx ↦ ⟨f x, hf hx, rfl⟩
 
@@ -471,17 +394,9 @@ lemma MapsTo.comp_right {s : Set β} {t : Set γ} (hg : MapsTo g s t) (f : α �
 lemma mapsTo_univ_iff : MapsTo f univ t ↔ ∀ x, f x ∈ t :=
   ⟨fun h _ => h (mem_univ _), fun h x _ => h x⟩
 
-@[deprecated (since := "2023-12-25")]
-theorem maps_univ_to (f : α → β) (s : Set β) : MapsTo f univ s ↔ ∀ a, f a ∈ s :=
-  mapsTo_univ_iff
-
 @[simp]
 lemma mapsTo_range_iff {g : ι → α} : MapsTo f (range g) t ↔ ∀ i, f (g i) ∈ t :=
   forall_mem_range
-
-@[deprecated mapsTo_range_iff (since := "2023-12-25")]
-theorem maps_range_to (f : α → β) (g : γ → α) (s : Set β) :
-    MapsTo f (range g) s ↔ MapsTo (f ∘ g) univ s := by rw [← image_univ, mapsTo_image_iff]
 
 theorem surjective_mapsTo_image_restrict (f : α → β) (s : Set α) :
     Surjective ((mapsTo_image f s).restrict f s (f '' s)) := fun ⟨_, x, hs, hxy⟩ =>
@@ -520,8 +435,6 @@ theorem preimage_restrictPreimage {u : Set t} :
     t.restrictPreimage f ⁻¹' u = (fun a : f ⁻¹' t ↦ f a) ⁻¹' (Subtype.val '' u) := by
   rw [← preimage_preimage (g := f) (f := Subtype.val), ← image_val_preimage_restrictPreimage,
     preimage_image_eq _ Subtype.val_injective]
-
-variable {U : ι → Set β}
 
 lemma restrictPreimage_injective (hf : Injective f) : Injective (t.restrictPreimage f) :=
   fun _ _ e => Subtype.coe_injective <| hf <| Subtype.mk.inj e
@@ -601,6 +514,9 @@ lemma injOn_id (s : Set α) : InjOn id s := injective_id.injOn
 theorem InjOn.comp (hg : InjOn g t) (hf : InjOn f s) (h : MapsTo f s t) : InjOn (g ∘ f) s :=
   fun _ hx _ hy heq => hf hx hy <| hg (h hx) (h hy) heq
 
+lemma InjOn.of_comp (h : InjOn (g ∘ f) s) : InjOn f s :=
+  fun _ hx _ hy heq ↦ h hx hy (by simp [heq])
+
 lemma InjOn.image_of_comp (h : InjOn (g ∘ f) s) : InjOn g (f '' s) :=
   forall_mem_image.2 fun _x hx ↦ forall_mem_image.2 fun _y hy heq ↦ congr_arg f <| h hx hy heq
 
@@ -616,6 +532,10 @@ theorem _root_.Function.Injective.injOn_range (h : Injective (g ∘ f)) : InjOn 
   rintro _ ⟨x, rfl⟩ _ ⟨y, rfl⟩ H
   exact congr_arg f (h H)
 
+theorem _root_.Set.InjOn.injective_iff (s : Set β) (h : InjOn g s) (hs : range f ⊆ s) :
+    Injective (g ∘ f) ↔ Injective f :=
+  ⟨(·.of_comp), fun h _ ↦ by aesop⟩
+
 theorem injOn_iff_injective : InjOn f s ↔ Injective (s.restrict f) :=
   ⟨fun H a b h => Subtype.eq <| H a.2 b.2 h, fun H a as b bs h =>
     congr_arg Subtype.val <| @H ⟨a, as⟩ ⟨b, bs⟩ h⟩
@@ -627,7 +547,7 @@ theorem MapsTo.restrict_inj (h : MapsTo f s t) : Injective (h.restrict f s t) �
 
 theorem exists_injOn_iff_injective [Nonempty β] :
     (∃ f : α → β, InjOn f s) ↔ ∃ f : s → β, Injective f :=
-  ⟨fun ⟨f, hf⟩ => ⟨_, hf.injective⟩,
+  ⟨fun ⟨_, hf⟩ => ⟨_, hf.injective⟩,
    fun ⟨f, hf⟩ => by
     lift f to α → β using trivial
     exact ⟨f, injOn_iff_injective.2 hf⟩⟩
@@ -697,6 +617,8 @@ lemma InjOn.image_diff_subset {f : α → β} {t : Set α} (h : InjOn f s) (hst 
     f '' (s \ t) = f '' s \ f '' t := by
   rw [h.image_diff, inter_eq_self_of_subset_right hst]
 
+alias image_diff_of_injOn := InjOn.image_diff_subset
+
 theorem InjOn.imageFactorization_injective (h : InjOn f s) :
     Injective (s.imageFactorization f) :=
   fun ⟨x, hx⟩ ⟨y, hy⟩ h' ↦ by simpa [imageFactorization, h.eq_iff hx hy] using h'
@@ -708,8 +630,15 @@ theorem InjOn.imageFactorization_injective (h : InjOn f s) :
 end injOn
 
 section graphOn
+variable {x : α × β}
+
+@[simp] lemma mem_graphOn : x ∈ s.graphOn f ↔ x.1 ∈ s ∧ f x.1 = x.2 := by aesop (add simp graphOn)
 
 @[simp] lemma graphOn_empty (f : α → β) : graphOn f ∅ = ∅ := image_empty _
+@[simp] lemma graphOn_eq_empty : graphOn f s = ∅ ↔ s = ∅ := image_eq_empty
+@[simp] lemma graphOn_nonempty : (s.graphOn f).Nonempty ↔ s.Nonempty := image_nonempty
+
+protected alias ⟨_, Nonempty.graphOn⟩ := graphOn_nonempty
 
 @[simp]
 lemma graphOn_union (f : α → β) (s t : Set α) : graphOn f (s ∪ t) = graphOn f s ∪ graphOn f t :=
@@ -728,6 +657,24 @@ lemma graphOn_insert (f : α → β) (x : α) (s : Set α) :
 lemma image_fst_graphOn (f : α → β) (s : Set α) : Prod.fst '' graphOn f s = s := by
   simp [graphOn, image_image]
 
+@[simp] lemma image_snd_graphOn (f : α → β) : Prod.snd '' s.graphOn f = f '' s := by ext x; simp
+
+lemma fst_injOn_graph : (s.graphOn f).InjOn Prod.fst := by aesop (add simp InjOn)
+
+lemma graphOn_comp (s : Set α) (f : α → β) (g : β → γ) :
+    s.graphOn (g ∘ f) = (fun x ↦ (x.1, g x.2)) '' s.graphOn f := by
+  simpa using image_comp (fun x ↦ (x.1, g x.2)) (fun x ↦ (x, f x)) _
+
+lemma graphOn_univ_eq_range : univ.graphOn f = range fun x ↦ (x, f x) := image_univ
+
+@[simp] lemma graphOn_inj {g : α → β} : s.graphOn f = s.graphOn g ↔ s.EqOn f g := by
+  simp [Set.ext_iff, funext_iff, forall_swap, EqOn]
+
+lemma graphOn_univ_inj {g : α → β} : univ.graphOn f = univ.graphOn g ↔ f = g := by simp
+
+lemma graphOn_univ_injective : Injective (univ.graphOn : (α → β) → Set (α × β)) :=
+  fun _f _g ↦ graphOn_univ_inj.1
+
 lemma exists_eq_graphOn_image_fst [Nonempty β] {s : Set (α × β)} :
     (∃ f : α → β, s = graphOn f (Prod.fst '' s)) ↔ InjOn Prod.fst s := by
   refine ⟨?_, fun h ↦ ?_⟩
@@ -745,6 +692,14 @@ lemma exists_eq_graphOn [Nonempty β] {s : Set (α × β)} :
     (∃ f t, s = graphOn f t) ↔ InjOn Prod.fst s :=
   .trans ⟨fun ⟨f, t, hs⟩ ↦ ⟨f, by rw [hs, image_fst_graphOn]⟩, fun ⟨f, hf⟩ ↦ ⟨f, _, hf⟩⟩
     exists_eq_graphOn_image_fst
+
+lemma graphOn_prod_graphOn (s : Set α) (t : Set β) (f : α → γ) (g : β → δ) :
+    s.graphOn f ×ˢ t.graphOn g = Equiv.prodProdProdComm .. ⁻¹' (s ×ˢ t).graphOn (Prod.map f g) := by
+  aesop
+
+lemma graphOn_prod_prodMap (s : Set α) (t : Set β) (f : α → γ) (g : β → δ) :
+    (s ×ˢ t).graphOn (Prod.map f g) = Equiv.prodProdProdComm .. ⁻¹' s.graphOn f ×ˢ t.graphOn g := by
+  aesop
 
 end graphOn
 
@@ -810,6 +765,11 @@ lemma surjOn_id (s : Set α) : SurjOn id s s := by simp [SurjOn, subset_rfl]
 
 theorem SurjOn.comp (hg : SurjOn g t p) (hf : SurjOn f s t) : SurjOn (g ∘ f) s p :=
   Subset.trans hg <| Subset.trans (image_subset g hf) <| image_comp g f s ▸ Subset.refl _
+
+lemma SurjOn.of_comp (h : SurjOn (g ∘ f) s p) (hr : MapsTo f s t) : SurjOn g t p := by
+  intro z hz
+  obtain ⟨x, hx, rfl⟩ := h hz
+  exact ⟨f x, hr hx, rfl⟩
 
 lemma SurjOn.iterate {f : α → α} {s : Set α} (h : SurjOn f s s) : ∀ n, SurjOn f^[n] s s
   | 0 => surjOn_id _
@@ -949,7 +909,7 @@ theorem BijOn.image_eq (h : BijOn f s t) : f '' s = t :=
   h.surjOn.image_eq_of_mapsTo h.mapsTo
 
 lemma BijOn.forall {p : β → Prop} (hf : BijOn f s t) : (∀ b ∈ t, p b) ↔ ∀ a ∈ s, p (f a) where
-  mp h a ha := h _ <| hf.mapsTo ha
+  mp h _ ha := h _ <| hf.mapsTo ha
   mpr h b hb := by obtain ⟨a, ha, rfl⟩ := hf.surjOn hb; exact h _ ha
 
 lemma BijOn.exists {p : β → Prop} (hf : BijOn f s t) : (∃ b ∈ t, p b) ↔ ∃ a ∈ s, p (f a) where
@@ -1004,6 +964,34 @@ theorem BijOn.subset_right {r : Set β} (hf : BijOn f s t) (hrt : r ⊆ t) :
 theorem BijOn.subset_left {r : Set α} (hf : BijOn f s t) (hrs : r ⊆ s) :
     BijOn f r (f '' r) :=
   (hf.injOn.mono hrs).bijOn_image
+
+theorem BijOn.insert_iff (ha : a ∉ s) (hfa : f a ∉ t) :
+    BijOn f (insert a s) (insert (f a) t) ↔ BijOn f s t where
+  mp h := by
+    have := congrArg (· \ {f a}) (image_insert_eq ▸ h.image_eq)
+    simp only [mem_singleton_iff, insert_diff_of_mem] at this
+    rw [diff_singleton_eq_self hfa, diff_singleton_eq_self] at this
+    · exact ⟨by simp [← this, mapsTo'], h.injOn.mono (subset_insert ..),
+        by simp [← this, surjOn_image]⟩
+    simp only [mem_image, not_exists, not_and]
+    intro x hx
+    rw [h.injOn.eq_iff (by simp [hx]) (by simp)]
+    exact ha ∘ (· ▸ hx)
+  mpr h := by
+    repeat rw [insert_eq]
+    refine (bijOn_singleton.mpr rfl).union h ?_
+    simp only [singleton_union, injOn_insert fun x ↦ (hfa (h.mapsTo x)), h.injOn, mem_image,
+      not_exists, not_and, true_and]
+    exact fun _ hx h₂ ↦ hfa (h₂ ▸ h.mapsTo hx)
+
+theorem BijOn.insert (h₁ : BijOn f s t) (h₂ : f a ∉ t) :
+    BijOn f (insert a s) (insert (f a) t) :=
+  (insert_iff (h₂ <| h₁.mapsTo ·) h₂).mpr h₁
+
+theorem BijOn.sdiff_singleton (h₁ : BijOn f s t) (h₂ : a ∈ s) :
+    BijOn f (s \ {a}) (t \ {f a}) := by
+  convert h₁.subset_left diff_subset
+  simp [h₁.injOn.image_diff, h₁.image_eq, h₂, inter_eq_self_of_subset_right]
 
 end bijOn
 
@@ -1278,7 +1266,7 @@ lemma exists_image_eq_injOn_of_subset_range (ht : t ⊆ range f) :
   image_preimage_eq_of_subset ht ▸ exists_image_eq_and_injOn _ _
 
 /-- If `f` maps `s` bijectively to `t` and a set `t'` is contained in the image of some `s₁ ⊇ s`,
-then `s₁` has a subset containing `s` that `f` maps bijectively to `t'`.-/
+then `s₁` has a subset containing `s` that `f` maps bijectively to `t'`. -/
 theorem BijOn.exists_extend_of_subset {t' : Set β} (h : BijOn f s t) (hss₁ : s ⊆ s₁) (htt' : t ⊆ t')
     (ht' : SurjOn f s₁ t') : ∃ s', s ⊆ s' ∧ s' ⊆ s₁ ∧ Set.BijOn f s' t' := by
   obtain ⟨r, hrss, hbij⟩ := exists_subset_bijOn ((s₁ ∩ f ⁻¹' t') \ f ⁻¹' t) f
@@ -1331,23 +1319,6 @@ lemma bijOn_comm {g : β → α} (h : InvOn f g t s) : BijOn f s t ↔ BijOn g t
 
 end Set
 
-/-! ### Monotone -/
-namespace Monotone
-
-variable [Preorder α] [Preorder β] {f : α → β}
-
-protected theorem restrict (h : Monotone f) (s : Set α) : Monotone (s.restrict f) := fun _ _ hxy =>
-  h hxy
-
-protected theorem codRestrict (h : Monotone f) {s : Set β} (hs : ∀ x, f x ∈ s) :
-    Monotone (s.codRestrict f hs) :=
-  h
-
-protected theorem rangeFactorization (h : Monotone f) : Monotone (Set.rangeFactorization f) :=
-  h
-
-end Monotone
-
 /-! ### Piecewise defined function -/
 namespace Set
 
@@ -1364,15 +1335,10 @@ theorem piecewise_univ [∀ i : α, Decidable (i ∈ (Set.univ : Set α))] :
   ext i
   simp [piecewise]
 
---@[simp] -- Porting note: simpNF linter complains
 theorem piecewise_insert_self {j : α} [∀ i, Decidable (i ∈ insert j s)] :
     (insert j s).piecewise f g j = f j := by simp [piecewise]
 
 variable [∀ j, Decidable (j ∈ s)]
-
--- TODO: move!
-instance Compl.decidableMem (j : α) : Decidable (j ∈ sᶜ) :=
-  instDecidableNot
 
 theorem piecewise_insert [DecidableEq α] (j : α) [∀ i, Decidable (i ∈ insert j s)] :
     (insert j s).piecewise f g = Function.update (s.piecewise f g) j (f j) := by
@@ -1414,10 +1380,13 @@ theorem le_piecewise {δ : α → Type*} [∀ i, Preorder (δ i)] {s : Set α} [
     g ≤ s.piecewise f₁ f₂ :=
   @piecewise_le α (fun i => (δ i)ᵒᵈ) _ s _ _ _ _ h₁ h₂
 
-theorem piecewise_le_piecewise {δ : α → Type*} [∀ i, Preorder (δ i)] {s : Set α}
+@[gcongr]
+theorem piecewise_mono {δ : α → Type*} [∀ i, Preorder (δ i)] {s : Set α}
     [∀ j, Decidable (j ∈ s)] {f₁ f₂ g₁ g₂ : ∀ i, δ i} (h₁ : ∀ i ∈ s, f₁ i ≤ g₁ i)
     (h₂ : ∀ i ∉ s, f₂ i ≤ g₂ i) : s.piecewise f₁ f₂ ≤ s.piecewise g₁ g₂ := by
   apply piecewise_le <;> intros <;> simp [*]
+
+@[deprecated (since := "2024-10-06")] alias piecewise_le_piecewise := piecewise_mono
 
 @[simp]
 theorem piecewise_insert_of_ne {i j : α} (h : i ≠ j) [∀ i, Decidable (i ∈ insert j s)] :
@@ -1513,46 +1482,6 @@ theorem univ_pi_piecewise_univ {ι : Type*} {α : ι → Type*} (s : Set ι) (t 
 
 end Set
 
-section strictMono
-
-theorem StrictMonoOn.injOn [LinearOrder α] [Preorder β] {f : α → β} {s : Set α}
-    (H : StrictMonoOn f s) : s.InjOn f := fun x hx y hy hxy =>
-  show Ordering.eq.Compares x y from (H.compares hx hy).1 hxy
-
-theorem StrictAntiOn.injOn [LinearOrder α] [Preorder β] {f : α → β} {s : Set α}
-    (H : StrictAntiOn f s) : s.InjOn f :=
-  @StrictMonoOn.injOn α βᵒᵈ _ _ f s H
-
-theorem StrictMonoOn.comp [Preorder α] [Preorder β] [Preorder γ] {g : β → γ} {f : α → β} {s : Set α}
-    {t : Set β} (hg : StrictMonoOn g t) (hf : StrictMonoOn f s) (hs : Set.MapsTo f s t) :
-    StrictMonoOn (g ∘ f) s := fun _x hx _y hy hxy => hg (hs hx) (hs hy) <| hf hx hy hxy
-
-theorem StrictMonoOn.comp_strictAntiOn [Preorder α] [Preorder β] [Preorder γ] {g : β → γ}
-    {f : α → β} {s : Set α} {t : Set β} (hg : StrictMonoOn g t) (hf : StrictAntiOn f s)
-    (hs : Set.MapsTo f s t) : StrictAntiOn (g ∘ f) s := fun _x hx _y hy hxy =>
-  hg (hs hy) (hs hx) <| hf hx hy hxy
-
-theorem StrictAntiOn.comp [Preorder α] [Preorder β] [Preorder γ] {g : β → γ} {f : α → β} {s : Set α}
-    {t : Set β} (hg : StrictAntiOn g t) (hf : StrictAntiOn f s) (hs : Set.MapsTo f s t) :
-    StrictMonoOn (g ∘ f) s := fun _x hx _y hy hxy => hg (hs hy) (hs hx) <| hf hx hy hxy
-
-theorem StrictAntiOn.comp_strictMonoOn [Preorder α] [Preorder β] [Preorder γ] {g : β → γ}
-    {f : α → β} {s : Set α} {t : Set β} (hg : StrictAntiOn g t) (hf : StrictMonoOn f s)
-    (hs : Set.MapsTo f s t) : StrictAntiOn (g ∘ f) s := fun _x hx _y hy hxy =>
-  hg (hs hx) (hs hy) <| hf hx hy hxy
-
-@[simp]
-theorem strictMono_restrict [Preorder α] [Preorder β] {f : α → β} {s : Set α} :
-    StrictMono (s.restrict f) ↔ StrictMonoOn f s := by simp [Set.restrict, StrictMono, StrictMonoOn]
-
-alias ⟨_root_.StrictMono.of_restrict, _root_.StrictMonoOn.restrict⟩ := strictMono_restrict
-
-theorem StrictMono.codRestrict [Preorder α] [Preorder β] {f : α → β} (hf : StrictMono f)
-    {s : Set β} (hs : ∀ x, f x ∈ s) : StrictMono (Set.codRestrict f s hs) :=
-  hf
-
-end strictMono
-
 namespace Function
 
 open Set
@@ -1579,6 +1508,10 @@ namespace Semiconj
 
 theorem mapsTo_image (h : Semiconj f fa fb) (ha : MapsTo fa s t) : MapsTo fb (f '' s) (f '' t) :=
   fun _y ⟨x, hx, hy⟩ => hy ▸ ⟨fa x, ha hx, h x⟩
+
+theorem mapsTo_image_right {t : Set β} (h : Semiconj f fa fb) (hst : MapsTo f s t) :
+    MapsTo f (fa '' s) (fb '' t) :=
+  mapsTo_image_iff.2 fun x hx ↦ ⟨f x, hst hx, (h x).symm⟩
 
 theorem mapsTo_range (h : Semiconj f fa fb) : MapsTo fb (range f) (range f) := fun _y ⟨x, hy⟩ =>
   hy ▸ ⟨fa x, h x⟩
@@ -1639,22 +1572,6 @@ theorem update_comp_eq_of_not_mem_range {α : Sort*} {β : Type*} {γ : Sort*} [
 
 theorem insert_injOn (s : Set α) : sᶜ.InjOn fun a => insert a s := fun _a ha _ _ =>
   (insert_inj ha).1
-
-theorem monotoneOn_of_rightInvOn_of_mapsTo {α β : Type*} [PartialOrder α] [LinearOrder β]
-    {φ : β → α} {ψ : α → β} {t : Set β} {s : Set α} (hφ : MonotoneOn φ t)
-    (φψs : Set.RightInvOn ψ φ s) (ψts : Set.MapsTo ψ s t) : MonotoneOn ψ s := by
-  rintro x xs y ys l
-  rcases le_total (ψ x) (ψ y) with (ψxy|ψyx)
-  · exact ψxy
-  · have := hφ (ψts ys) (ψts xs) ψyx
-    rw [φψs.eq ys, φψs.eq xs] at this
-    induction le_antisymm l this
-    exact le_refl _
-
-theorem antitoneOn_of_rightInvOn_of_mapsTo [PartialOrder α] [LinearOrder β]
-    {φ : β → α} {ψ : α → β} {t : Set β} {s : Set α} (hφ : AntitoneOn φ t)
-    (φψs : Set.RightInvOn ψ φ s) (ψts : Set.MapsTo ψ s t) : AntitoneOn ψ s :=
-  (monotoneOn_of_rightInvOn_of_mapsTo hφ.dual_left φψs ψts).dual_right
 
 lemma apply_eq_of_range_eq_singleton {f : α → β} {b : β} (h : range f = {b}) (a : α) :
     f a = b := by
@@ -1741,7 +1658,7 @@ lemma bijOn' (h₁ : MapsTo e s t) (h₂ : MapsTo e.symm t s) : BijOn e s t :=
   ⟨h₁, e.injective.injOn, fun b hb ↦ ⟨e.symm b, h₂ hb, apply_symm_apply _ _⟩⟩
 
 protected lemma bijOn (h : ∀ a, e a ∈ t ↔ a ∈ s) : BijOn e s t :=
-  e.bijOn' (fun a ↦ (h _).2) fun b hb ↦ (h _).1 <| by rwa [apply_symm_apply]
+  e.bijOn' (fun _ ↦ (h _).2) fun b hb ↦ (h _).1 <| by rwa [apply_symm_apply]
 
 lemma invOn : InvOn e e.symm t s :=
   ⟨e.rightInverse_symm.leftInvOn _, e.leftInverse_symm.leftInvOn _⟩
@@ -1765,4 +1682,55 @@ lemma bijOn_swap (ha : a ∈ s) (hb : b ∈ s) : BijOn (swap a b) s s :=
 
 end Equiv
 
-set_option linter.style.longFile 1900
+/-! ### Vertical line test -/
+
+namespace Set
+
+/-- **Vertical line test** for functions.
+
+Let `f : α → β × γ` be a function to a product. Assume that `f` is surjective on the first factor
+and that the image of `f` intersects every "vertical line" `{(b, c) | c : γ}` at most once.
+Then the image of `f` is the graph of some monoid homomorphism `f' : β → γ`. -/
+lemma exists_range_eq_graphOn_univ {f : α → β × γ} (hf₁ : Surjective (Prod.fst ∘ f))
+    (hf : ∀ g₁ g₂, (f g₁).1 = (f g₂).1 → (f g₁).2 = (f g₂).2) :
+    ∃ f' : β → γ, range f = univ.graphOn f' := by
+  refine ⟨fun h ↦ (f (hf₁ h).choose).snd, ?_⟩
+  ext x
+  simp only [mem_range, comp_apply, mem_graphOn, mem_univ, true_and]
+  refine ⟨?_, fun hi ↦ ⟨(hf₁ x.1).choose, Prod.ext (hf₁ x.1).choose_spec hi⟩⟩
+  rintro ⟨g, rfl⟩
+  exact hf _ _ (hf₁ (f g).1).choose_spec
+
+/-- **Line test** for equivalences.
+
+Let `f : α → β × γ` be a homomorphism to a product of monoids. Assume that `f` is surjective on both
+factors and that the image of `f` intersects every "vertical line" `{(b, c) | c : γ}` and every
+"horizontal line" `{(b, c) | b : β}` at most once. Then the image of `f` is the graph of some
+equivalence `f' : β ≃ γ`. -/
+lemma exists_equiv_range_eq_graphOn_univ {f : α → β × γ} (hf₁ : Surjective (Prod.fst ∘ f))
+    (hf₂ : Surjective (Prod.snd ∘ f)) (hf : ∀ g₁ g₂, (f g₁).1 = (f g₂).1 ↔ (f g₁).2 = (f g₂).2) :
+    ∃ e : β ≃ γ, range f = univ.graphOn e := by
+  obtain ⟨e₁, he₁⟩ := exists_range_eq_graphOn_univ hf₁ fun _ _ ↦ (hf _ _).1
+  obtain ⟨e₂, he₂⟩ := exists_range_eq_graphOn_univ (f := Equiv.prodComm _ _ ∘ f) (by simpa) <|
+    by simp [hf]
+  have he₁₂ h i : e₁ h = i ↔ e₂ i = h := by
+    rw [Set.ext_iff] at he₁ he₂
+    aesop (add simp [Prod.swap_eq_iff_eq_swap])
+  exact ⟨
+  { toFun := e₁
+    invFun := e₂
+    left_inv := fun h ↦ by rw [← he₁₂]
+    right_inv := fun i ↦ by rw [he₁₂] }, he₁⟩
+
+/-- **Vertical line test** for functions.
+
+Let `s : Set (β × γ)` be a set in a product. Assume that `s` maps bijectively to the first factor.
+Then `s` is the graph of some function `f : β → γ`. -/
+lemma exists_eq_mgraphOn_univ {s : Set (β × γ)}
+    (hs₁ : Bijective (Prod.fst ∘ (Subtype.val : s → β × γ))) : ∃ f : β → γ, s = univ.graphOn f := by
+  simpa using exists_range_eq_graphOn_univ hs₁.surjective
+    fun a b h ↦ congr_arg (Prod.snd ∘ (Subtype.val : s → β × γ)) (hs₁.injective h)
+
+end Set
+
+set_option linter.style.longFile 1800

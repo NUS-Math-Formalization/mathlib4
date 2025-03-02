@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Violeta Hernández Palacios
 -/
 import Mathlib.Order.SuccPred.Archimedean
-import Mathlib.Order.BoundedOrder
+import Mathlib.Order.BoundedOrder.Lattice
 
 /-!
 # Successor and predecessor limits
@@ -24,7 +24,7 @@ predicate `Order.IsSuccLimit`.
 -/
 
 
-variable {α : Type*}
+variable {α : Type*} {a b : α}
 
 namespace Order
 
@@ -53,16 +53,16 @@ theorem not_isSuccPrelimit_iff_exists_covBy (a : α) : ¬IsSuccPrelimit a ↔ �
 alias not_isSuccLimit_iff_exists_covBy := not_isSuccPrelimit_iff_exists_covBy
 
 @[simp]
-theorem isSuccPrelimit_of_dense [DenselyOrdered α] (a : α) : IsSuccPrelimit a := fun _ => not_covBy
+theorem IsSuccPrelimit.of_dense [DenselyOrdered α] (a : α) : IsSuccPrelimit a := fun _ => not_covBy
 
-@[deprecated isSuccPrelimit_of_dense (since := "2024-09-05")]
-alias isSuccLimit_of_dense := isSuccPrelimit_of_dense
+@[deprecated (since := "2024-09-30")] alias isSuccPrelimit_of_dense := IsSuccPrelimit.of_dense
+@[deprecated (since := "2024-09-05")] alias isSuccLimit_of_dense := IsSuccPrelimit.of_dense
 
 end LT
 
 section Preorder
 
-variable [Preorder α] {a : α}
+variable [Preorder α]
 
 /-- A successor limit is a value that isn't minimal and doesn't cover any other.
 
@@ -130,6 +130,12 @@ theorem not_isSuccPrelimit_succ_of_not_isMax (ha : ¬ IsMax a) : ¬ IsSuccPrelim
 theorem not_isSuccLimit_succ_of_not_isMax (ha : ¬ IsMax a) : ¬ IsSuccLimit (succ a) :=
   mt IsSuccLimit.isMax ha
 
+/-- Given `j < i` with `i` a prelimit, `IsSuccPrelimit.mid` picks an arbitrary element strictly
+between `j` and `i`. -/
+noncomputable def IsSuccPrelimit.mid {i j : α} (hi : IsSuccPrelimit i) (hj : j < i) :
+    Ioo j i :=
+  Classical.indefiniteDescription _ ((not_covBy_iff hj).mp <| hi j)
+
 section NoMaxOrder
 
 variable [NoMaxOrder α]
@@ -182,10 +188,13 @@ end Preorder
 
 section PartialOrder
 
-variable [PartialOrder α] {a b : α}
+variable [PartialOrder α]
 
 theorem isSuccLimit_iff [OrderBot α] : IsSuccLimit a ↔ a ≠ ⊥ ∧ IsSuccPrelimit a := by
   rw [IsSuccLimit, isMin_iff_eq_bot]
+
+theorem IsSuccLimit.bot_lt [OrderBot α] (h : IsSuccLimit a) : ⊥ < a :=
+  h.ne_bot.bot_lt
 
 variable [SuccOrder α]
 
@@ -216,6 +225,12 @@ theorem mem_range_succ_or_isSuccPrelimit (a) : a ∈ range (succ : α → α) �
 
 @[deprecated mem_range_succ_or_isSuccPrelimit (since := "2024-09-05")]
 alias mem_range_succ_or_isSuccLimit := mem_range_succ_or_isSuccPrelimit
+
+theorem isMin_or_mem_range_succ_or_isSuccLimit (a) :
+    IsMin a ∨ a ∈ range (succ : α → α) ∨ IsSuccLimit a := by
+  rw [IsSuccLimit]
+  have := mem_range_succ_or_isSuccPrelimit a
+  tauto
 
 theorem isSuccPrelimit_of_succ_lt (H : ∀ a < b, succ a < b) : IsSuccPrelimit b := fun a hab =>
   (H a hab.lt).ne (CovBy.succ_eq hab)
@@ -289,12 +304,79 @@ end IsSuccArchimedean
 
 end PartialOrder
 
+section LinearOrder
+
+variable [LinearOrder α]
+
+theorem IsSuccPrelimit.le_iff_forall_le (h : IsSuccPrelimit a) : a ≤ b ↔ ∀ c < a, c ≤ b := by
+  use fun ha c hc ↦ hc.le.trans ha
+  intro H
+  by_contra! ha
+  exact h b ⟨ha, fun c hb hc ↦ (H c hc).not_lt hb⟩
+
+theorem IsSuccLimit.le_iff_forall_le (h : IsSuccLimit a) : a ≤ b ↔ ∀ c < a, c ≤ b :=
+  h.isSuccPrelimit.le_iff_forall_le
+
+theorem IsSuccPrelimit.lt_iff_exists_lt (h : IsSuccPrelimit b) : a < b ↔ ∃ c < b, a < c := by
+  rw [← not_iff_not]
+  simp [h.le_iff_forall_le]
+
+theorem IsSuccLimit.lt_iff_exists_lt (h : IsSuccLimit b) : a < b ↔ ∃ c < b, a < c :=
+  h.isSuccPrelimit.lt_iff_exists_lt
+
+lemma _root_.IsLUB.isSuccPrelimit_of_not_mem {s : Set α} (hs : IsLUB s a) (ha : a ∉ s) :
+    IsSuccPrelimit a := by
+  intro b hb
+  obtain ⟨c, hc, hbc, hca⟩ := hs.exists_between hb.lt
+  obtain rfl := (hb.ge_of_gt hbc).antisymm hca
+  contradiction
+
+lemma _root_.IsLUB.mem_of_not_isSuccPrelimit {s : Set α} (hs : IsLUB s a) (ha : ¬IsSuccPrelimit a) :
+    a ∈ s :=
+  ha.imp_symm hs.isSuccPrelimit_of_not_mem
+
+lemma _root_.IsLUB.isSuccLimit_of_not_mem {s : Set α} (hs : IsLUB s a) (hs' : s.Nonempty)
+    (ha : a ∉ s) : IsSuccLimit a := by
+  refine ⟨?_, hs.isSuccPrelimit_of_not_mem ha⟩
+  obtain ⟨b, hb⟩ := hs'
+  obtain rfl | hb := (hs.1 hb).eq_or_lt
+  · contradiction
+  · exact hb.not_isMin
+
+lemma _root_.IsLUB.mem_of_not_isSuccLimit {s : Set α} (hs : IsLUB s a) (hs' : s.Nonempty)
+    (ha : ¬IsSuccLimit a) : a ∈ s :=
+  ha.imp_symm <| hs.isSuccLimit_of_not_mem hs'
+
+theorem IsSuccPrelimit.isLUB_Iio (ha : IsSuccPrelimit a) : IsLUB (Iio a) a := by
+  refine ⟨fun _ ↦ le_of_lt, fun b hb ↦ le_of_forall_lt fun c hc ↦ ?_⟩
+  obtain ⟨d, hd, hd'⟩ := ha.lt_iff_exists_lt.1 hc
+  exact hd'.trans_le (hb hd)
+
+theorem IsSuccLimit.isLUB_Iio (ha : IsSuccLimit a) : IsLUB (Iio a) a :=
+  ha.isSuccPrelimit.isLUB_Iio
+
+theorem isLUB_Iio_iff_isSuccPrelimit : IsLUB (Iio a) a ↔ IsSuccPrelimit a := by
+  refine ⟨fun ha b hb ↦ ?_, IsSuccPrelimit.isLUB_Iio⟩
+  rw [hb.Iio_eq] at ha
+  obtain rfl := isLUB_Iic.unique ha
+  cases hb.lt.false
+
+variable [SuccOrder α]
+
+theorem IsSuccPrelimit.le_succ_iff (hb : IsSuccPrelimit b) : b ≤ succ a ↔ b ≤ a :=
+  le_iff_le_iff_lt_iff_lt.2 hb.succ_lt_iff
+
+theorem IsSuccLimit.le_succ_iff (hb : IsSuccLimit b) : b ≤ succ a ↔ b ≤ a :=
+  hb.isSuccPrelimit.le_succ_iff
+
+end LinearOrder
+
 /-! ### Predecessor limits -/
 
 
 section LT
 
-variable [LT α] {a : α}
+variable [LT α]
 
 /-- A predecessor pre-limit is a value that isn't covered by any other.
 
@@ -311,10 +393,11 @@ theorem not_isPredPrelimit_iff_exists_covBy (a : α) : ¬IsPredPrelimit a ↔ �
 @[deprecated not_isPredPrelimit_iff_exists_covBy (since := "2024-09-05")]
 alias not_isPredLimit_iff_exists_covBy := not_isPredPrelimit_iff_exists_covBy
 
-theorem isPredPrelimit_of_dense [DenselyOrdered α] (a : α) : IsPredPrelimit a := fun _ => not_covBy
+@[simp]
+theorem IsPredPrelimit.of_dense [DenselyOrdered α] (a : α) : IsPredPrelimit a := fun _ => not_covBy
 
-@[deprecated isPredPrelimit_of_dense (since := "2024-09-05")]
-alias isPredLimit_of_dense := isPredPrelimit_of_dense
+@[deprecated (since := "2024-09-30")] alias isPredPrelimit_of_dense := IsPredPrelimit.of_dense
+@[deprecated (since := "2024-09-05")] alias isPredLimit_of_dense := IsPredPrelimit.of_dense
 
 @[simp]
 theorem isSuccPrelimit_toDual_iff : IsSuccPrelimit (toDual a) ↔ IsPredPrelimit a := by
@@ -335,7 +418,7 @@ end LT
 
 section Preorder
 
-variable [Preorder α] {a : α}
+variable [Preorder α]
 
 /-- A predecessor limit is a value that isn't maximal and doesn't cover any other.
 
@@ -462,10 +545,13 @@ end Preorder
 
 section PartialOrder
 
-variable [PartialOrder α] {a b : α}
+variable [PartialOrder α]
 
 theorem isPredLimit_iff [OrderTop α] : IsPredLimit a ↔ a ≠ ⊤ ∧ IsPredPrelimit a := by
   rw [IsPredLimit, isMax_iff_eq_top]
+
+theorem IsPredLimit.lt_top [OrderTop α] (h : IsPredLimit a) : a < ⊤ :=
+  h.ne_top.lt_top
 
 variable [PredOrder α]
 
@@ -555,12 +641,63 @@ end IsPredArchimedean
 
 end PartialOrder
 
+section LinearOrder
+
+variable [LinearOrder α]
+
+theorem IsPredPrelimit.le_iff_forall_le (h : IsPredPrelimit a) : b ≤ a ↔ ∀ ⦃c⦄, a < c → b ≤ c :=
+  h.dual.le_iff_forall_le
+
+theorem IsPredLimit.le_iff_forall_le (h : IsPredLimit a) : b ≤ a ↔ ∀ ⦃c⦄, a < c → b ≤ c :=
+  h.dual.le_iff_forall_le
+
+theorem IsPredPrelimit.lt_iff_exists_lt (h : IsPredPrelimit b) : b < a ↔ ∃ c, b < c ∧ c < a :=
+  h.dual.lt_iff_exists_lt
+
+theorem IsPredLimit.lt_iff_exists_lt (h : IsPredLimit b) : b < a ↔ ∃ c, b < c ∧ c < a :=
+  h.dual.lt_iff_exists_lt
+
+lemma _root_.IsGLB.isPredPrelimit_of_not_mem {s : Set α} (hs : IsGLB s a) (ha : a ∉ s) :
+    IsPredPrelimit a := by
+  simpa using (IsGLB.dual hs).isSuccPrelimit_of_not_mem ha
+
+lemma _root_.IsGLB.mem_of_not_isPredPrelimit {s : Set α} (hs : IsGLB s a) (ha : ¬IsPredPrelimit a) :
+    a ∈ s :=
+  ha.imp_symm hs.isPredPrelimit_of_not_mem
+
+lemma _root_.IsGLB.isPredLimit_of_not_mem {s : Set α} (hs : IsGLB s a) (hs' : s.Nonempty)
+    (ha : a ∉ s) : IsPredLimit a := by
+  simpa using (IsGLB.dual hs).isSuccLimit_of_not_mem hs' ha
+
+lemma _root_.IsGLB.mem_of_not_isPredLimit {s : Set α} (hs : IsGLB s a) (hs' : s.Nonempty)
+    (ha : ¬IsPredLimit a) : a ∈ s :=
+  ha.imp_symm <| hs.isPredLimit_of_not_mem hs'
+
+theorem IsPredPrelimit.isGLB_Ioi (ha : IsPredPrelimit a) : IsGLB (Ioi a) a :=
+  ha.dual.isLUB_Iio
+
+theorem IsPredLimit.isGLB_Ioi (ha : IsPredLimit a) : IsGLB (Ioi a) a :=
+  ha.dual.isLUB_Iio
+
+theorem isGLB_Ioi_iff_isPredPrelimit : IsGLB (Ioi a) a ↔ IsPredPrelimit a := by
+  simpa using isLUB_Iio_iff_isSuccPrelimit (a := toDual a)
+
+variable [PredOrder α]
+
+theorem IsPredPrelimit.pred_le_iff (hb : IsPredPrelimit b) : pred a ≤ b ↔ a ≤ b :=
+  hb.dual.le_succ_iff
+
+theorem IsPredLimit.pred_le_iff (hb : IsPredLimit b) : pred a ≤ b ↔ a ≤ b :=
+  hb.dual.le_succ_iff
+
+end LinearOrder
+
 end Order
 
 /-! ### Induction principles -/
 
 
-variable {C : α → Sort*} {b : α}
+variable {C : α → Sort*}
 
 namespace Order
 

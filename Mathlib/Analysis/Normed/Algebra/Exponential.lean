@@ -3,9 +3,12 @@ Copyright (c) 2021 Anatole Dedecker. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Anatole Dedecker, Eric Wieser
 -/
+import Mathlib.Algebra.Ring.Action.ConjAct
 import Mathlib.Analysis.Analytic.ChangeOrigin
 import Mathlib.Analysis.Complex.Basic
 import Mathlib.Data.Nat.Choose.Cast
+import Mathlib.Analysis.Analytic.OfScalars
+import Mathlib.Analysis.SpecificLimits.RCLike
 
 /-!
 # Exponential in a Banach algebra
@@ -86,18 +89,22 @@ In the long term is may be possible to replace `Real.exp` and `Complex.exp` with
 
 namespace NormedSpace
 
-open Filter RCLike ContinuousMultilinearMap NormedField Asymptotics
+open Filter RCLike ContinuousMultilinearMap NormedField Asymptotics FormalMultilinearSeries
 
 open scoped Nat Topology ENNReal
 
 section TopologicalAlgebra
 
-variable (𝕂 𝔸 : Type*) [Field 𝕂] [Ring 𝔸] [Algebra 𝕂 𝔸] [TopologicalSpace 𝔸] [TopologicalRing 𝔸]
+variable (𝕂 𝔸 : Type*) [Field 𝕂] [Ring 𝔸] [Algebra 𝕂 𝔸] [TopologicalSpace 𝔸] [IsTopologicalRing 𝔸]
 
 /-- `expSeries 𝕂 𝔸` is the `FormalMultilinearSeries` whose `n`-th term is the map
 `(xᵢ) : 𝔸ⁿ ↦ (1/n! : 𝕂) • ∏ xᵢ`. Its sum is the exponential map `NormedSpace.exp 𝕂 : 𝔸 → 𝔸`. -/
 def expSeries : FormalMultilinearSeries 𝕂 𝔸 𝔸 := fun n =>
   (n !⁻¹ : 𝕂) • ContinuousMultilinearMap.mkPiAlgebraFin 𝕂 n 𝔸
+
+/-- The exponential series as an `ofScalars` series. -/
+theorem expSeries_eq_ofScalars : expSeries 𝕂 𝔸 = ofScalars 𝔸 fun n ↦ (n !⁻¹ : 𝕂) := by
+  simp_rw [FormalMultilinearSeries.ext_iff, expSeries, ofScalars, implies_true]
 
 variable {𝔸}
 
@@ -105,8 +112,8 @@ variable {𝔸}
 It is defined as the sum of the `FormalMultilinearSeries` `expSeries 𝕂 𝔸`.
 
 Note that when `𝔸 = Matrix n n 𝕂`, this is the **Matrix Exponential**; see
-[`Analysis.Normed.Algebra.MatrixExponential`](./MatrixExponential) for lemmas specific to that
-case. -/
+[`MatrixExponential`](./Mathlib/Analysis/Normed/Algebra/MatrixExponential) for lemmas
+specific to that case. -/
 noncomputable def exp (x : 𝔸) : 𝔸 :=
   (expSeries 𝕂 𝔸).sum x
 
@@ -125,10 +132,14 @@ theorem expSeries_sum_eq (x : 𝔸) : (expSeries 𝕂 𝔸).sum x = ∑' n : ℕ
 theorem exp_eq_tsum : exp 𝕂 = fun x : 𝔸 => ∑' n : ℕ, (n !⁻¹ : 𝕂) • x ^ n :=
   funext expSeries_sum_eq
 
+/-- The exponential sum as an `ofScalarsSum`. -/
+theorem exp_eq_ofScalarsSum : exp 𝕂 = ofScalarsSum (E := 𝔸) fun n ↦ (n !⁻¹ : 𝕂) := by
+  rw [exp_eq_tsum, ofScalarsSum_eq_tsum]
+
 theorem expSeries_apply_zero (n : ℕ) :
     (expSeries 𝕂 𝔸 n fun _ => (0 : 𝔸)) = Pi.single (f := fun _ => 𝔸) 0 1 n := by
   rw [expSeries_apply_eq]
-  cases' n with n
+  rcases n with - | n
   · rw [pow_zero, Nat.factorial_zero, Nat.cast_one, inv_one, one_smul, Pi.single_eq_same]
   · rw [zero_pow (Nat.succ_ne_zero _), smul_zero, Pi.single_eq_of_ne n.succ_ne_zero]
 
@@ -172,7 +183,7 @@ end TopologicalAlgebra
 section TopologicalDivisionAlgebra
 
 variable {𝕂 𝔸 : Type*} [Field 𝕂] [DivisionRing 𝔸] [Algebra 𝕂 𝔸] [TopologicalSpace 𝔸]
-  [TopologicalRing 𝔸]
+  [IsTopologicalRing 𝔸]
 
 theorem expSeries_apply_eq_div (x : 𝔸) (n : ℕ) : (expSeries 𝕂 𝔸 n fun _ => x) = x ^ n / n ! := by
   rw [div_eq_mul_inv, ← (Nat.cast_commute n ! (x ^ n)).inv_left₀.eq, ← smul_eq_mul,
@@ -373,20 +384,19 @@ variable [NormedRing 𝔹] [NormedAlgebra 𝕂 𝔹]
 /-- In a normed algebra `𝔸` over `𝕂 = ℝ` or `𝕂 = ℂ`, the series defining the exponential map
 has an infinite radius of convergence. -/
 theorem expSeries_radius_eq_top : (expSeries 𝕂 𝔸).radius = ∞ := by
-  refine (expSeries 𝕂 𝔸).radius_eq_top_of_summable_norm fun r => ?_
-  refine .of_norm_bounded_eventually _ (Real.summable_pow_div_factorial r) ?_
-  filter_upwards [eventually_cofinite_ne 0] with n hn
-  rw [norm_mul, norm_norm (expSeries 𝕂 𝔸 n), expSeries]
-  rw [norm_smul (n ! : 𝕂)⁻¹ (ContinuousMultilinearMap.mkPiAlgebraFin 𝕂 n 𝔸)]
-  -- Porting note: Lean needed this to be explicit for some reason
-  rw [norm_inv, norm_pow, NNReal.norm_eq, norm_natCast, mul_comm, ← mul_assoc, ← div_eq_mul_inv]
-  have : ‖ContinuousMultilinearMap.mkPiAlgebraFin 𝕂 n 𝔸‖ ≤ 1 :=
-    norm_mkPiAlgebraFin_le_of_pos (Nat.pos_of_ne_zero hn)
-  exact mul_le_of_le_one_right (div_nonneg (pow_nonneg r.coe_nonneg n) n !.cast_nonneg) this
+  have {n : ℕ} : (Nat.factorial n : 𝕂) ≠ 0 := Nat.cast_ne_zero.mpr (Nat.factorial_ne_zero n)
+  apply expSeries_eq_ofScalars 𝕂 𝔸 ▸
+    ofScalars_radius_eq_top_of_tendsto 𝔸 _ (Eventually.of_forall fun n => ?_)
+  · simp_rw [← norm_div, Nat.factorial_succ, Nat.cast_mul, mul_inv_rev, mul_div_right_comm,
+      inv_div_inv, norm_mul, div_self this, norm_one, one_mul]
+    apply norm_zero (E := 𝕂) ▸ Filter.Tendsto.norm
+    apply (Filter.tendsto_add_atTop_iff_nat (f := fun n => (n : 𝕂)⁻¹) 1).mpr
+    exact RCLike.tendsto_inverse_atTop_nhds_zero_nat 𝕂
+  · simp [this]
 
 theorem expSeries_radius_pos : 0 < (expSeries 𝕂 𝔸).radius := by
   rw [expSeries_radius_eq_top]
-  exact WithTop.zero_lt_top
+  exact WithTop.top_pos
 
 variable {𝕂 𝔸 𝔹}
 
@@ -465,12 +475,13 @@ theorem exp_mem_unitary_of_mem_skewAdjoint [StarRing 𝔸] [ContinuousStar 𝔸]
 
 end
 
+open scoped Function in -- required for scoped `on` notation
 /-- In a Banach-algebra `𝔸` over `𝕂 = ℝ` or `𝕂 = ℂ`, if a family of elements `f i` mutually
 commute then `NormedSpace.exp 𝕂 (∑ i, f i) = ∏ i, NormedSpace.exp 𝕂 (f i)`. -/
 theorem exp_sum_of_commute {ι} (s : Finset ι) (f : ι → 𝔸)
-    (h : (s : Set ι).Pairwise fun i j => Commute (f i) (f j)) :
+    (h : (s : Set ι).Pairwise (Commute on f)) :
     exp 𝕂 (∑ i ∈ s, f i) =
-      s.noncommProd (fun i => exp 𝕂 (f i)) fun i hi j hj _ => (h.of_refl hi hj).exp 𝕂 := by
+      s.noncommProd (fun i => exp 𝕂 (f i)) fun _ hi _ hj _ => (h.of_refl hi hj).exp 𝕂 := by
   classical
     induction' s using Finset.induction_on with a s ha ih
     · simp
@@ -596,7 +607,7 @@ end Normed
 section ScalarTower
 
 variable (𝕂 𝕂' 𝔸 : Type*) [Field 𝕂] [Field 𝕂'] [Ring 𝔸] [Algebra 𝕂 𝔸] [Algebra 𝕂' 𝔸]
-  [TopologicalSpace 𝔸] [TopologicalRing 𝔸]
+  [TopologicalSpace 𝔸] [IsTopologicalRing 𝔸]
 
 /-- If a normed ring `𝔸` is a normed algebra over two fields, then they define the same
 `expSeries` on `𝔸`. -/

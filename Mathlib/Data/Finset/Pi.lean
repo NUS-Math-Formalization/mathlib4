@@ -4,7 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Johannes Hölzl
 -/
 import Mathlib.Data.Finset.Card
+import Mathlib.Data.Finset.Union
 import Mathlib.Data.Multiset.Pi
+import Mathlib.Logic.Function.DependsOn
 
 /-!
 # The cartesian product of finsets
@@ -85,9 +87,16 @@ theorem Pi.cons_injective {a : α} {b : δ a} {s : Finset α} (hs : a ∉ s) :
 theorem pi_empty {t : ∀ a : α, Finset (β a)} : pi (∅ : Finset α) t = singleton (Pi.empty β) :=
   rfl
 
-@[simp, aesop safe apply (rule_sets := [finsetNonempty])]
+@[simp]
 lemma pi_nonempty : (s.pi t).Nonempty ↔ ∀ a ∈ s, (t a).Nonempty := by
   simp [Finset.Nonempty, Classical.skolem]
+
+@[aesop safe apply (rule_sets := [finsetNonempty])]
+alias ⟨_, pi_nonempty_of_forall_nonempty⟩ := pi_nonempty
+
+@[simp]
+lemma pi_eq_empty : s.pi t = ∅ ↔ ∃ a ∈ s, t a = ∅ := by
+  simp [← not_nonempty_iff_eq_empty]
 
 @[simp]
 theorem pi_insert [∀ a, DecidableEq (β a)] {s : Finset α} {t : ∀ a : α, Finset (β a)} {a : α}
@@ -171,5 +180,9 @@ theorem restrict₂_comp_restrict {s t : Finset ι} (hst : s ⊆ t) :
 theorem restrict₂_comp_restrict₂ {s t u : Finset ι} (hst : s ⊆ t) (htu : t ⊆ u) :
     (restrict₂ (π := π) hst) ∘ (restrict₂ htu) = restrict₂ (hst.trans htu) := rfl
 
+lemma dependsOn_restrict (s : Finset ι) : DependsOn (s.restrict (π := π)) s :=
+  (s : Set ι).dependsOn_restrict
+
 end Pi
+
 end Finset

@@ -3,8 +3,10 @@ Copyright (c) 2017 Johannes Hölzl. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Johannes Hölzl, Mario Carneiro, Jeremy Avigad
 -/
-import Mathlib.Algebra.Group.Support
+import Mathlib.Data.Set.Lattice
+import Mathlib.Order.Filter.AtTopBot.Basic
 import Mathlib.Order.Filter.Lift
+import Mathlib.Topology.Defs.Basic
 import Mathlib.Topology.Defs.Filter
 
 /-!
@@ -90,7 +92,7 @@ end
 
 protected theorem TopologicalSpace.ext_iff {t t' : TopologicalSpace X} :
     t = t' ↔ ∀ s, IsOpen[t] s ↔ IsOpen[t'] s :=
-  ⟨fun h s => h ▸ Iff.rfl, fun h => by ext; exact h _⟩
+  ⟨fun h _ => h ▸ Iff.rfl, fun h => by ext; exact h _⟩
 
 theorem isOpen_fold {t : TopologicalSpace X} : t.IsOpen s = IsOpen[t] s :=
   rfl
@@ -118,7 +120,7 @@ lemma isOpen_iff_of_cover {f : α → Set X} (ho : ∀ i, IsOpen (f i)) (hU : (�
 
 theorem Set.Finite.isOpen_sInter {s : Set (Set X)} (hs : s.Finite) :
     (∀ t ∈ s, IsOpen t) → IsOpen (⋂₀ s) :=
-  Finite.induction_on hs (fun _ => by rw [sInter_empty]; exact isOpen_univ) fun _ _ ih h => by
+  Finite.induction_on _ hs (fun _ => by rw [sInter_empty]; exact isOpen_univ) fun _ _ ih h => by
     simp only [sInter_insert, forall_mem_insert] at h ⊢
     exact h.1.inter (ih h.2)
 
@@ -135,7 +137,7 @@ theorem isOpen_biInter_finset {s : Finset α} {f : α → Set X} (h : ∀ i ∈ 
     IsOpen (⋂ i ∈ s, f i) :=
   s.finite_toSet.isOpen_biInter h
 
-@[simp] -- Porting note: added `simp`
+@[simp]
 theorem isOpen_const {p : Prop} : IsOpen { _x : X | p } := by by_cases p <;> simp [*]
 
 theorem IsOpen.and : IsOpen { x | p₁ x } → IsOpen { x | p₂ x } → IsOpen { x | p₁ x ∧ p₂ x } :=
@@ -279,7 +281,7 @@ theorem interior_inter : interior (s ∩ t) = interior s ∩ interior t :=
 
 theorem Set.Finite.interior_biInter {ι : Type*} {s : Set ι} (hs : s.Finite) (f : ι → Set X) :
     interior (⋂ i ∈ s, f i) = ⋂ i ∈ s, interior (f i) :=
-  hs.induction_on (by simp) <| by intros; simp [*]
+  hs.induction_on _ (by simp) <| by intros; simp [*]
 
 theorem Set.Finite.interior_sInter {S : Set (Set X)} (hS : S.Finite) :
     interior (⋂₀ S) = ⋂ s ∈ S, interior s := by
@@ -309,7 +311,7 @@ theorem interior_union_isClosed_of_interior_empty (h₁ : IsClosed s)
     (h₂ : interior t = ∅) : interior (s ∪ t) = interior s :=
   have : interior (s ∪ t) ⊆ s := fun x ⟨u, ⟨(hu₁ : IsOpen u), (hu₂ : u ⊆ s ∪ t)⟩, (hx₁ : x ∈ u)⟩ =>
     by_contradiction fun hx₂ : x ∉ s =>
-      have : u \ s ⊆ t := fun x ⟨h₁, h₂⟩ => Or.resolve_left (hu₂ h₁) h₂
+      have : u \ s ⊆ t := fun _ ⟨h₁, h₂⟩ => Or.resolve_left (hu₂ h₁) h₂
       have : u \ s ⊆ interior t := by rwa [(IsOpen.sdiff hu₁ h₁).subset_interior_iff]
       have : u \ s ⊆ ∅ := by rwa [h₂] at this
       this ⟨hx₁, hx₂⟩
@@ -568,6 +570,12 @@ theorem dense_compl_singleton_iff_not_open :
     obtain rfl : U = {x} := eq_singleton_iff_nonempty_unique_mem.2 ⟨hne, hUx⟩
     exact ho hU
 
+/-- If a closed property holds for a dense subset, it holds for the whole space. -/
+@[elab_as_elim]
+lemma Dense.induction (hs : Dense s) {P : X → Prop}
+    (mem : ∀ x ∈ s, P x) (isClosed : IsClosed { x | P x }) (x : X) : P x :=
+  hs.closure_eq.symm.subset.trans (isClosed.closure_subset_iff.mpr mem) trivial
+
 theorem IsOpen.subset_interior_closure {s : Set X} (s_open : IsOpen s) :
     s ⊆ interior (closure s) := s_open.subset_interior_iff.mpr subset_closure
 
@@ -799,8 +807,10 @@ theorem frequently_frequently_nhds {p : X → Prop} :
   simp only [not_frequently, eventually_eventually_nhds]
 
 @[simp]
-theorem eventually_mem_nhds : (∀ᶠ x' in 𝓝 x, s ∈ 𝓝 x') ↔ s ∈ 𝓝 x :=
+theorem eventually_mem_nhds_iff : (∀ᶠ x' in 𝓝 x, s ∈ 𝓝 x') ↔ s ∈ 𝓝 x :=
   eventually_eventually_nhds
+
+@[deprecated (since := "2024-10-04")] alias eventually_mem_nhds := eventually_mem_nhds_iff
 
 @[simp]
 theorem nhds_bind_nhds : (𝓝 x).bind 𝓝 = 𝓝 x :=
@@ -851,13 +861,13 @@ theorem tendsto_atTop_nhds [Nonempty α] [SemilatticeSup α] {f : α → X} :
 theorem tendsto_const_nhds {f : Filter α} : Tendsto (fun _ : α => x) f (𝓝 x) :=
   tendsto_nhds.mpr fun _ _ ha => univ_mem' fun _ => ha
 
-theorem tendsto_atTop_of_eventually_const {ι : Type*} [SemilatticeSup ι] [Nonempty ι]
+theorem tendsto_atTop_of_eventually_const {ι : Type*} [Preorder ι]
     {u : ι → X} {i₀ : ι} (h : ∀ i ≥ i₀, u i = x) : Tendsto u atTop (𝓝 x) :=
-  Tendsto.congr' (EventuallyEq.symm (eventually_atTop.mpr ⟨i₀, h⟩)) tendsto_const_nhds
+  Tendsto.congr' (EventuallyEq.symm ((eventually_ge_atTop i₀).mono h)) tendsto_const_nhds
 
-theorem tendsto_atBot_of_eventually_const {ι : Type*} [SemilatticeInf ι] [Nonempty ι]
+theorem tendsto_atBot_of_eventually_const {ι : Type*} [Preorder ι]
     {u : ι → X} {i₀ : ι} (h : ∀ i ≤ i₀, u i = x) : Tendsto u atBot (𝓝 x) :=
-  Tendsto.congr' (EventuallyEq.symm (eventually_atBot.mpr ⟨i₀, h⟩)) tendsto_const_nhds
+  tendsto_atTop_of_eventually_const (ι := ιᵒᵈ) h
 
 theorem pure_le_nhds : pure ≤ (𝓝 : X → Filter X) := fun _ _ hs => mem_pure.2 <| mem_of_mem_nhds hs
 
@@ -939,13 +949,6 @@ theorem ClusterPt.of_inf_right {f g : Filter X} (H : ClusterPt x <| f ⊓ g) :
     ClusterPt x g :=
   H.mono inf_le_right
 
-theorem Ultrafilter.clusterPt_iff {f : Ultrafilter X} : ClusterPt x f ↔ ↑f ≤ 𝓝 x :=
-  ⟨f.le_of_inf_neBot', fun h => ClusterPt.of_le_nhds h⟩
-
-theorem clusterPt_iff_ultrafilter {f : Filter X} : ClusterPt x f ↔
-    ∃ u : Ultrafilter X, u ≤ f ∧ u ≤ 𝓝 x := by
-  simp_rw [ClusterPt, ← le_inf_iff, exists_ultrafilter_iff, inf_comm]
-
 section MapClusterPt
 
 variable {F : Filter α} {u : α → X} {x : X}
@@ -975,11 +978,6 @@ theorem Filter.HasBasis.mapClusterPt_iff_frequently {ι : Sort*} {p : ι → Pro
 
 theorem mapClusterPt_iff : MapClusterPt x F u ↔ ∀ s ∈ 𝓝 x, ∃ᶠ a in F, u a ∈ s :=
   (𝓝 x).basis_sets.mapClusterPt_iff_frequently
-
-theorem mapClusterPt_iff_ultrafilter :
-    MapClusterPt x F u ↔ ∃ U : Ultrafilter α, U ≤ F ∧ Tendsto u U (𝓝 x) := by
-  simp_rw [MapClusterPt, ClusterPt, ← Filter.push_pull', map_neBot_iff, tendsto_iff_comap,
-    ← le_inf_iff, exists_ultrafilter_iff, inf_comm]
 
 theorem mapClusterPt_comp {φ : α → β} {u : β → X} :
     MapClusterPt x F (u ∘ φ) ↔ MapClusterPt x (map φ F) u := Iff.rfl
@@ -1029,6 +1027,17 @@ theorem AccPt.mono {F G : Filter X} (h : AccPt x F) (hFG : F ≤ G) : AccPt x G 
 theorem AccPt.clusterPt (x : X) (F : Filter X) (h : AccPt x F) : ClusterPt x F :=
   ((acc_iff_cluster x F).mp h).mono inf_le_right
 
+theorem clusterPt_principal {x : X} {C : Set X} :
+    ClusterPt x (𝓟 C) ↔ x ∈ C ∨ AccPt x (𝓟 C) := by
+  constructor
+  · intro h
+    by_contra! hc
+    rw [acc_principal_iff_cluster] at hc
+    simp_all only [not_false_eq_true, diff_singleton_eq_self, not_true_eq_false, hc.1]
+  · rintro (h | h)
+    · exact clusterPt_principal_iff.mpr fun _ mem ↦ ⟨x, ⟨mem_of_mem_nhds mem, h⟩⟩
+    · exact h.clusterPt
+
 /-!
 ### Interior, closure and frontier in terms of neighborhoods
 -/
@@ -1060,7 +1069,7 @@ theorem isOpen_iff_nhds : IsOpen s ↔ ∀ x ∈ s, 𝓝 x ≤ 𝓟 s :=
 
 theorem TopologicalSpace.ext_iff_nhds {X} {t t' : TopologicalSpace X} :
     t = t' ↔ ∀ x, @nhds _ t x = @nhds _ t' x :=
-  ⟨fun H x ↦ congrFun (congrArg _ H) _, fun H ↦ by ext; simp_rw [@isOpen_iff_nhds _ _ _, H]⟩
+  ⟨fun H _ ↦ congrFun (congrArg _ H) _, fun H ↦ by ext; simp_rw [@isOpen_iff_nhds _ _ _, H]⟩
 
 alias ⟨_, TopologicalSpace.ext_nhds⟩ := TopologicalSpace.ext_iff_nhds
 
@@ -1070,10 +1079,6 @@ theorem isOpen_iff_mem_nhds : IsOpen s ↔ ∀ x ∈ s, s ∈ 𝓝 x :=
 /-- A set `s` is open iff for every point `x` in `s` and every `y` close to `x`, `y` is in `s`. -/
 theorem isOpen_iff_eventually : IsOpen s ↔ ∀ x, x ∈ s → ∀ᶠ y in 𝓝 x, y ∈ s :=
   isOpen_iff_mem_nhds
-
-theorem isOpen_iff_ultrafilter :
-    IsOpen s ↔ ∀ x ∈ s, ∀ (l : Ultrafilter X), ↑l ≤ 𝓝 x → s ∈ l := by
-  simp_rw [isOpen_iff_mem_nhds, ← mem_iff_ultrafilter]
 
 theorem isOpen_singleton_iff_nhds_eq_pure (x : X) : IsOpen ({x} : Set X) ↔ 𝓝 x = pure x := by
   constructor
@@ -1085,8 +1090,9 @@ theorem isOpen_singleton_iff_nhds_eq_pure (x : X) : IsOpen ({x} : Set X) ↔ �
     simp [isOpen_iff_nhds, h]
 
 theorem isOpen_singleton_iff_punctured_nhds (x : X) : IsOpen ({x} : Set X) ↔ 𝓝[≠] x = ⊥ := by
-  rw [isOpen_singleton_iff_nhds_eq_pure, nhdsWithin, ← mem_iff_inf_principal_compl, ← le_pure_iff,
-    nhds_neBot.le_pure_iff]
+  rw [isOpen_singleton_iff_nhds_eq_pure, nhdsWithin, ← mem_iff_inf_principal_compl,
+      le_antisymm_iff]
+  simp [pure_le_nhds x]
 
 theorem mem_closure_iff_frequently : x ∈ closure s ↔ ∃ᶠ x in 𝓝 x, x ∈ s := by
   rw [Filter.Frequently, Filter.Eventually, ← mem_interior_iff_mem_nhds,
@@ -1114,9 +1120,6 @@ theorem mem_closure_iff_clusterPt : x ∈ closure s ↔ ClusterPt x (𝓟 s) :=
 theorem mem_closure_iff_nhds_ne_bot : x ∈ closure s ↔ 𝓝 x ⊓ 𝓟 s ≠ ⊥ :=
   mem_closure_iff_clusterPt.trans neBot_iff
 
-@[deprecated (since := "2024-01-28")]
-alias mem_closure_iff_nhds_neBot := mem_closure_iff_nhds_ne_bot
-
 theorem mem_closure_iff_nhdsWithin_neBot : x ∈ closure s ↔ NeBot (𝓝[s] x) :=
   mem_closure_iff_clusterPt
 
@@ -1142,7 +1145,6 @@ theorem dense_compl_singleton (x : X) [NeBot (𝓝[≠] x)] : Dense ({x}ᶜ : Se
 
 /-- If `x` is not an isolated point of a topological space, then the closure of `{x}ᶜ` is the whole
 space. -/
--- Porting note (#10618): was a `@[simp]` lemma but `simp` can prove it
 theorem closure_compl_singleton (x : X) [NeBot (𝓝[≠] x)] : closure {x}ᶜ = (univ : Set X) :=
   (dense_compl_singleton x).closure_eq
 
@@ -1191,27 +1193,23 @@ theorem clusterPt_iff_lift'_closure {F : Filter X} :
 
 theorem clusterPt_iff_lift'_closure' {F : Filter X} :
     ClusterPt x F ↔ (F.lift' closure ⊓ pure x).NeBot := by
-  rw [clusterPt_iff_lift'_closure, ← Ultrafilter.coe_pure, inf_comm, Ultrafilter.inf_neBot_iff]
+  rw [clusterPt_iff_lift'_closure, inf_comm]
+  constructor
+  · intro h
+    simp [h, pure_neBot]
+  · intro h U hU
+    simp_rw [← forall_mem_nonempty_iff_neBot, mem_inf_iff] at h
+    simpa using h ({x} ∩ U) ⟨{x}, by simp, U, hU, rfl⟩
 
 @[simp]
 theorem clusterPt_lift'_closure_iff {F : Filter X} :
     ClusterPt x (F.lift' closure) ↔ ClusterPt x F := by
   simp [clusterPt_iff_lift'_closure, lift'_lift'_assoc (monotone_closure X) (monotone_closure X)]
 
-/-- `x` belongs to the closure of `s` if and only if some ultrafilter
-  supported on `s` converges to `x`. -/
-theorem mem_closure_iff_ultrafilter :
-    x ∈ closure s ↔ ∃ u : Ultrafilter X, s ∈ u ∧ ↑u ≤ 𝓝 x := by
-  simp [closure_eq_cluster_pts, ClusterPt, ← exists_ultrafilter_iff, and_comm]
-
 theorem isClosed_iff_clusterPt : IsClosed s ↔ ∀ a, ClusterPt a (𝓟 s) → a ∈ s :=
   calc
     IsClosed s ↔ closure s ⊆ s := closure_subset_iff_isClosed.symm
     _ ↔ ∀ a, ClusterPt a (𝓟 s) → a ∈ s := by simp only [subset_def, mem_closure_iff_clusterPt]
-
-theorem isClosed_iff_ultrafilter : IsClosed s ↔
-    ∀ x, ∀ u : Ultrafilter X, ↑u ≤ 𝓝 x → s ∈ u → x ∈ s := by
-  simp [isClosed_iff_clusterPt, ClusterPt, ← exists_ultrafilter_iff]
 
 theorem isClosed_iff_nhds :
     IsClosed s ↔ ∀ x, (∀ U ∈ 𝓝 x, (U ∩ s).Nonempty) → x ∈ s := by
@@ -1367,6 +1365,12 @@ theorem IsOpen.preimage (hf : Continuous f) {t : Set Y} (h : IsOpen t) :
     IsOpen (f ⁻¹' t) :=
   hf.isOpen_preimage t h
 
+lemma Equiv.continuous_symm_iff (e : X ≃ Y) : Continuous e.symm ↔ IsOpenMap e := by
+  simp_rw [continuous_def, ← Set.image_equiv_eq_preimage_symm, IsOpenMap]
+
+lemma Equiv.isOpenMap_symm_iff (e : X ≃ Y) : IsOpenMap e.symm ↔ Continuous e := by
+  simp_rw [← Equiv.continuous_symm_iff, Equiv.symm_symm]
+
 theorem continuous_congr {g : X → Y} (h : ∀ x, f x = g x) :
     Continuous f ↔ Continuous g :=
   .of_eq <| congrArg _ <| funext h
@@ -1400,21 +1404,13 @@ theorem ContinuousAt.eventually_mem {f : X → Y} {x : X} (hf : ContinuousAt f x
     (hs : s ∈ 𝓝 (f x)) : ∀ᶠ y in 𝓝 x, f y ∈ s :=
   hf hs
 
-/-- If a function ``f` tends to somewhere other than `𝓝 (f x)` at `x`,
+/-- If a function `f` tends to somewhere other than `𝓝 (f x)` at `x`,
 then `f` is not continuous at `x`
 -/
 lemma not_continuousAt_of_tendsto {f : X → Y} {l₁ : Filter X} {l₂ : Filter Y} {x : X}
     (hf : Tendsto f l₁ l₂) [l₁.NeBot] (hl₁ : l₁ ≤ 𝓝 x) (hl₂ : Disjoint (𝓝 (f x)) l₂) :
     ¬ ContinuousAt f x := fun cont ↦
   (cont.mono_left hl₁).not_tendsto hl₂ hf
-
-/-- Deprecated, please use `not_mem_tsupport_iff_eventuallyEq` instead. -/
-@[deprecated (since := "2024-01-15")]
-theorem eventuallyEq_zero_nhds {M₀} [Zero M₀] {f : X → M₀} :
-    f =ᶠ[𝓝 x] 0 ↔ x ∉ closure (Function.support f) := by
-  rw [← mem_compl_iff, ← interior_compl, mem_interior_iff_mem_nhds, Function.compl_support,
-    EventuallyEq, eventually_iff]
-  simp only [Pi.zero_apply]
 
 theorem ClusterPt.map {lx : Filter X} {ly : Filter Y} (H : ClusterPt x lx)
     (hfc : ContinuousAt f x) (hf : Tendsto f lx ly) : ClusterPt (f x) ly :=
@@ -1513,14 +1509,6 @@ theorem mem_closure_image (hf : ContinuousAt f x)
     (hx : x ∈ closure s) : f x ∈ closure (f '' s) :=
   mem_closure_of_frequently_of_tendsto
     ((mem_closure_iff_frequently.1 hx).mono fun _ => mem_image_of_mem _) hf
-
-theorem continuousAt_iff_ultrafilter :
-    ContinuousAt f x ↔ ∀ g : Ultrafilter X, ↑g ≤ 𝓝 x → Tendsto f g (𝓝 (f x)) :=
-  tendsto_iff_ultrafilter f (𝓝 x) (𝓝 (f x))
-
-theorem continuous_iff_ultrafilter :
-    Continuous f ↔ ∀ (x) (g : Ultrafilter X), ↑g ≤ 𝓝 x → Tendsto f g (𝓝 (f x)) := by
-  simp only [continuous_iff_continuousAt, continuousAt_iff_ultrafilter]
 
 theorem Continuous.closure_preimage_subset (hf : Continuous f) (t : Set Y) :
     closure (f ⁻¹' t) ⊆ f ⁻¹' closure t := by
@@ -1677,7 +1665,7 @@ However, lemmas with this conclusion are not nice to use in practice because
     continuous_add.comp (continuous_id.prod_mk continuous_id)
   ```
   The second is a valid proof, which is accepted if you write it as
-  `continuous_add.comp (continuous_id.prod_mk continuous_id : _)`
+  `continuous_add.comp (continuous_id.prod_mk continuous_id :)`
 
 2. If the operation has more than 2 arguments, they are impractical to use, because in your
   application the arguments in the domain might be in a different order or associated differently.

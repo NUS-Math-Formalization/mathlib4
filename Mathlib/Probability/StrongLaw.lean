@@ -62,6 +62,8 @@ open Set (indicator)
 
 open scoped Topology MeasureTheory ProbabilityTheory ENNReal NNReal
 
+open scoped Function -- required for scoped `on` notation
+
 namespace ProbabilityTheory
 
 /-! ### Prerequisites on truncations -/
@@ -118,13 +120,13 @@ theorem truncation_eq_of_nonneg {f : α → ℝ} {A : ℝ} (h : ∀ x, 0 ≤ f x
 theorem truncation_nonneg {f : α → ℝ} (A : ℝ) {x : α} (h : 0 ≤ f x) : 0 ≤ truncation f A x :=
   Set.indicator_apply_nonneg fun _ => h
 
-theorem _root_.MeasureTheory.AEStronglyMeasurable.memℒp_truncation [IsFiniteMeasure μ]
-    (hf : AEStronglyMeasurable f μ) {A : ℝ} {p : ℝ≥0∞} : Memℒp (truncation f A) p μ :=
-  Memℒp.of_bound hf.truncation |A| (Eventually.of_forall fun _ => abs_truncation_le_bound _ _ _)
+theorem _root_.MeasureTheory.AEStronglyMeasurable.memLp_truncation [IsFiniteMeasure μ]
+    (hf : AEStronglyMeasurable f μ) {A : ℝ} {p : ℝ≥0∞} : MemLp (truncation f A) p μ :=
+  MemLp.of_bound hf.truncation |A| (Eventually.of_forall fun _ => abs_truncation_le_bound _ _ _)
 
 theorem _root_.MeasureTheory.AEStronglyMeasurable.integrable_truncation [IsFiniteMeasure μ]
     (hf : AEStronglyMeasurable f μ) {A : ℝ} : Integrable (truncation f A) μ := by
-  rw [← memℒp_one_iff_integrable]; exact hf.memℒp_truncation
+  rw [← memLp_one_iff_integrable]; exact hf.memLp_truncation
 
 theorem moment_truncation_eq_intervalIntegral (hf : AEStronglyMeasurable f μ) {A : ℝ} (hA : 0 ≤ A)
     {n : ℕ} (hn : n ≠ 0) : ∫ x, truncation f A x ^ n ∂μ = ∫ y in -A..A, y ^ n ∂Measure.map f μ := by
@@ -369,7 +371,7 @@ pairwise independence) for nonnegative random variables, following Etemadi's pro
 section StrongLawNonneg
 
 variable (X : ℕ → Ω → ℝ) (hint : Integrable (X 0))
-  (hindep : Pairwise fun i j => IndepFun (X i) (X j)) (hident : ∀ i, IdentDistrib (X i) (X 0))
+  (hindep : Pairwise (IndepFun on X)) (hident : ∀ i, IdentDistrib (X i) (X 0))
   (hnonneg : ∀ i ω, 0 ≤ X i ω)
 
 include hint hindep hident hnonneg in
@@ -396,7 +398,7 @@ theorem strong_law_aux1 {c : ℝ} (c_one : 1 < c) {ε : ℝ} (εpos : 0 < ε) : 
   set Y := fun n : ℕ => truncation (X n) n
   set S := fun n => ∑ i ∈ range n, Y i with hS
   let u : ℕ → ℕ := fun n => ⌊c ^ n⌋₊
-  have u_mono : Monotone u := fun i j hij => Nat.floor_mono (pow_le_pow_right c_one.le hij)
+  have u_mono : Monotone u := fun i j hij => Nat.floor_mono (pow_right_mono₀ c_one.le hij)
   have I1 : ∀ K, ∑ j ∈ range K, ((j : ℝ) ^ 2)⁻¹ * Var[Y j] ≤ 2 * 𝔼[X 0] := by
     intro K
     calc
@@ -417,27 +419,26 @@ theorem strong_law_aux1 {c : ℝ} (c_one : 1 < c) {ε : ℝ} (εpos : 0 < ε) : 
         congr 1
         rw [hS, IndepFun.variance_sum]
         · intro j _
-          exact (hident j).aestronglyMeasurable_fst.memℒp_truncation
+          exact (hident j).aestronglyMeasurable_fst.memLp_truncation
         · intro k _ l _ hkl
           exact (hindep hkl).comp (A k).measurable (A l).measurable
-      _ = ∑ j ∈ range (u (N - 1)),
-          (∑ i ∈ (range N).filter fun i => j < u i, ((u i : ℝ) ^ 2)⁻¹) * Var[Y j] := by
+      _ = ∑ j ∈ range (u (N - 1)), (∑ i ∈ range N with j < u i, ((u i : ℝ) ^ 2)⁻¹) * Var[Y j] := by
         simp_rw [mul_sum, sum_mul, sum_sigma']
         refine sum_nbij' (fun p ↦ ⟨p.2, p.1⟩) (fun p ↦ ⟨p.2, p.1⟩) ?_ ?_ ?_ ?_ ?_
         · simp only [mem_sigma, mem_range, filter_congr_decidable, mem_filter, and_imp,
             Sigma.forall]
           exact fun a b haN hb ↦ ⟨hb.trans_le <| u_mono <| Nat.le_pred_of_lt haN, haN, hb⟩
-        all_goals aesop
+        all_goals simp
       _ ≤ ∑ j ∈ range (u (N - 1)), c ^ 5 * (c - 1)⁻¹ ^ 3 / ↑j ^ 2 * Var[Y j] := by
         apply sum_le_sum fun j hj => ?_
-        rcases @eq_zero_or_pos _ _ j with (rfl | hj)
+        rcases eq_zero_or_pos j with (rfl | hj)
         · simp only [Nat.cast_zero, zero_pow, Ne, Nat.one_ne_zero,
             not_false_iff, div_zero, zero_mul]
           simp only [Y, Nat.cast_zero, truncation_zero, variance_zero, mul_zero, le_rfl]
         apply mul_le_mul_of_nonneg_right _ (variance_nonneg _ _)
         convert sum_div_nat_floor_pow_sq_le_div_sq N (Nat.cast_pos.2 hj) c_one using 2
-        · simp only [Nat.cast_lt]
-        · simp only [one_div]
+        · simp only [u, Nat.cast_lt]
+        · simp only [Y, S, u, C, one_div]
       _ = c ^ 5 * (c - 1)⁻¹ ^ 3 * ∑ j ∈ range (u (N - 1)), ((j : ℝ) ^ 2)⁻¹ * Var[Y j] := by
         simp_rw [mul_sum, div_eq_mul_inv, mul_assoc]
       _ ≤ c ^ 5 * (c - 1)⁻¹ ^ 3 * (2 * 𝔼[X 0]) := by
@@ -452,12 +453,12 @@ theorem strong_law_aux1 {c : ℝ} (c_one : 1 < c) {ε : ℝ} (εpos : 0 < ε) : 
           ∑ i ∈ range N, ENNReal.ofReal (Var[S (u i)] / (u i * ε) ^ 2) := by
         refine sum_le_sum fun i _ => ?_
         apply meas_ge_le_variance_div_sq
-        · exact memℒp_finset_sum' _ fun j _ => (hident j).aestronglyMeasurable_fst.memℒp_truncation
+        · exact memLp_finset_sum' _ fun j _ => (hident j).aestronglyMeasurable_fst.memLp_truncation
         · apply mul_pos (Nat.cast_pos.2 _) εpos
           refine zero_lt_one.trans_le ?_
           apply Nat.le_floor
           rw [Nat.cast_one]
-          apply one_le_pow_of_one_le c_one.le
+          apply one_le_pow₀ c_one.le
       _ = ENNReal.ofReal (∑ i ∈ range N, Var[S (u i)] / (u i * ε) ^ 2) := by
         rw [ENNReal.ofReal_sum_of_nonneg fun i _ => ?_]
         exact div_nonneg (variance_nonneg _ _) (sq_nonneg _)
@@ -476,7 +477,7 @@ theorem strong_law_aux1 {c : ℝ} (c_one : 1 < c) {ε : ℝ} (εpos : 0 < ε) : 
       ENNReal.ofReal_lt_top
   filter_upwards [ae_eventually_not_mem I4.ne] with ω hω
   simp_rw [S, not_le, mul_comm, sum_apply] at hω
-  convert hω; simp only [sum_apply]
+  convert hω; simp only [Y, S, u, C, sum_apply]
 
 include hint hindep hident hnonneg in
 /- The truncation of `Xᵢ` up to `i` satisfies the strong law of large numbers
@@ -563,7 +564,7 @@ theorem strong_law_aux6 {c : ℝ} (c_one : 1 < c) :
   have H : ∀ n : ℕ, (0 : ℝ) < ⌊c ^ n⌋₊ := by
     intro n
     refine zero_lt_one.trans_le ?_
-    simp only [Nat.one_le_cast, Nat.one_le_floor_iff, one_le_pow_of_one_le c_one.le n]
+    simp only [Nat.one_le_cast, Nat.one_le_floor_iff, one_le_pow₀ c_one.le]
   filter_upwards [strong_law_aux4 X hint hindep hident hnonneg c_one,
     strong_law_aux5 X hint hident hnonneg] with ω hω h'ω
   rw [← tendsto_sub_nhds_zero_iff, ← Asymptotics.isLittleO_one_iff ℝ]
@@ -603,10 +604,12 @@ identically distributed integrable real-valued random variables, then `∑ i ∈
 converges almost surely to `𝔼[X 0]`. We give here the strong version, due to Etemadi, that only
 requires pairwise independence. Superseded by `strong_law_ae`, which works for random variables
 taking values in any Banach space. -/
-theorem strong_law_ae_real {Ω : Type*} [MeasureSpace Ω]
-    (X : ℕ → Ω → ℝ) (hint : Integrable (X 0))
-    (hindep : Pairwise fun i j => IndepFun (X i) (X j)) (hident : ∀ i, IdentDistrib (X i) (X 0)) :
-    ∀ᵐ ω, Tendsto (fun n : ℕ => (∑ i ∈ range n, X i ω) / n) atTop (𝓝 𝔼[X 0]) := by
+theorem strong_law_ae_real {Ω : Type*} {m : MeasurableSpace Ω} {μ : Measure Ω}
+    (X : ℕ → Ω → ℝ) (hint : Integrable (X 0) μ)
+    (hindep : Pairwise ((IndepFun · · μ) on X))
+    (hident : ∀ i, IdentDistrib (X i) (X 0) μ μ) :
+    ∀ᵐ ω ∂μ, Tendsto (fun n : ℕ => (∑ i ∈ range n, X i ω) / n) atTop (𝓝 μ[X 0]) := by
+  let mΩ : MeasureSpace Ω := ⟨μ⟩
   -- first get rid of the trivial case where the space is not a probability space
   by_cases h : ∀ᵐ ω, X 0 ω = 0
   · have I : ∀ᵐ ω, ∀ i, X i ω = 0 := by
@@ -615,7 +618,7 @@ theorem strong_law_ae_real {Ω : Type*} [MeasureSpace Ω]
       exact (hident i).symm.ae_snd (p := fun x ↦ x = 0) measurableSet_eq h
     filter_upwards [I] with ω hω
     simpa [hω] using (integral_eq_zero_of_ae h).symm
-  have : IsProbabilityMeasure (ℙ : Measure Ω) :=
+  have : IsProbabilityMeasure μ :=
     hint.isProbabilityMeasure_of_indepFun (X 0) (X 1) h (hindep zero_ne_one)
   -- then consider separately the positive and the negative part, and apply the result
   -- for nonnegative functions to them.
@@ -630,17 +633,17 @@ theorem strong_law_ae_real {Ω : Type*} [MeasureSpace Ω]
     strong_law_aux7 _ hint.neg_part (fun i j hij => (hindep hij).comp negm negm)
       (fun i => (hident i).comp negm) fun i ω => le_max_right _ _
   filter_upwards [A, B] with ω hωpos hωneg
-  convert hωpos.sub hωneg using 1
+  convert hωpos.sub hωneg using 2
   · simp only [pos, neg, ← sub_div, ← sum_sub_distrib, max_zero_sub_max_neg_zero_eq_self,
       Function.comp_apply]
-  · simp only [← integral_sub hint.pos_part hint.neg_part, max_zero_sub_max_neg_zero_eq_self,
-      Function.comp_apply]
+  · simp only [pos, neg, ← integral_sub hint.pos_part hint.neg_part,
+      max_zero_sub_max_neg_zero_eq_self, Function.comp_apply, mΩ]
 
 end StrongLawAeReal
 
 section StrongLawVectorSpace
 
-variable {Ω : Type*} [MeasureSpace Ω] [IsProbabilityMeasure (ℙ : Measure Ω)]
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} [IsProbabilityMeasure μ]
   {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E] [CompleteSpace E]
   [MeasurableSpace E]
 
@@ -650,22 +653,23 @@ open Set TopologicalSpace
 the composition of the random variables with a simple function satisfies the strong law of large
 numbers. -/
 lemma strong_law_ae_simpleFunc_comp (X : ℕ → Ω → E) (h' : Measurable (X 0))
-    (hindep : Pairwise (fun i j ↦ IndepFun (X i) (X j))) (hident : ∀ i, IdentDistrib (X i) (X 0))
-    (φ : SimpleFunc E E) : ∀ᵐ ω,
-      Tendsto (fun n : ℕ ↦ (n : ℝ) ⁻¹ • (∑ i ∈ range n, φ (X i ω))) atTop (𝓝 𝔼[φ ∘ (X 0)]) := by
+    (hindep : Pairwise ((IndepFun · · μ) on X))
+    (hident : ∀ i, IdentDistrib (X i) (X 0) μ μ) (φ : SimpleFunc E E) :
+    ∀ᵐ ω ∂μ,
+      Tendsto (fun n : ℕ ↦ (n : ℝ) ⁻¹ • (∑ i ∈ range n, φ (X i ω))) atTop (𝓝 μ[φ ∘ (X 0)]) := by
   -- this follows from the one-dimensional version when `φ` takes a single value, and is then
   -- extended to the general case by linearity.
   classical
-  refine SimpleFunc.induction (P := fun ψ ↦ ∀ᵐ ω,
-    Tendsto (fun n : ℕ ↦ (n : ℝ) ⁻¹ • (∑ i ∈ range n, ψ (X i ω))) atTop (𝓝 𝔼[ψ ∘ (X 0)])) ?_ ?_ φ
+  refine SimpleFunc.induction (P := fun ψ ↦ ∀ᵐ ω ∂μ,
+    Tendsto (fun n : ℕ ↦ (n : ℝ) ⁻¹ • (∑ i ∈ range n, ψ (X i ω))) atTop (𝓝 μ[ψ ∘ (X 0)])) ?_ ?_ φ
   · intro c s hs
     simp only [SimpleFunc.const_zero, SimpleFunc.coe_piecewise, SimpleFunc.coe_const,
       SimpleFunc.coe_zero, piecewise_eq_indicator, Function.comp_apply]
     let F : E → ℝ := indicator s 1
     have F_meas : Measurable F := (measurable_indicator_const_iff 1).2 hs
     let Y : ℕ → Ω → ℝ := fun n ↦ F ∘ (X n)
-    have : ∀ᵐ (ω : Ω), Tendsto (fun (n : ℕ) ↦ (n : ℝ)⁻¹ • ∑ i ∈ Finset.range n, Y i ω)
-        atTop (𝓝 𝔼[Y 0]) := by
+    have : ∀ᵐ (ω : Ω) ∂μ, Tendsto (fun (n : ℕ) ↦ (n : ℝ)⁻¹ • ∑ i ∈ Finset.range n, Y i ω)
+        atTop (𝓝 μ[Y 0]) := by
       simp only [Function.const_one, smul_eq_mul, ← div_eq_inv_mul]
       apply strong_law_ae_real
       · exact SimpleFunc.integrable_of_isFiniteMeasure
@@ -682,7 +686,7 @@ lemma strong_law_ae_simpleFunc_comp (X : ℕ → Ω → E) (h' : Measurable (X 0
       simp
     simp only [I, integral_smul_const]
     convert Tendsto.smul_const hω c using 1
-    simp [Y, ← sum_smul, smul_smul]
+    simp [F, Y, ← sum_smul, smul_smul]
   · rintro φ ψ - hφ hψ
     filter_upwards [hφ, hψ] with ω hωφ hωψ
     convert hωφ.add hωψ using 1
@@ -699,9 +703,10 @@ variable [BorelSpace E]
 assuming measurability in addition to integrability. This is weakened to ae measurability in
 the full version `ProbabilityTheory.strong_law_ae`. -/
 lemma strong_law_ae_of_measurable
-    (X : ℕ → Ω → E) (hint : Integrable (X 0)) (h' : StronglyMeasurable (X 0))
-    (hindep : Pairwise (fun i j ↦ IndepFun (X i) (X j))) (hident : ∀ i, IdentDistrib (X i) (X 0)) :
-    ∀ᵐ ω, Tendsto (fun n : ℕ ↦ (n : ℝ) ⁻¹ • (∑ i ∈ range n, X i ω)) atTop (𝓝 𝔼[X 0]) := by
+    (X : ℕ → Ω → E) (hint : Integrable (X 0) μ) (h' : StronglyMeasurable (X 0))
+    (hindep : Pairwise ((IndepFun · · μ) on X))
+    (hident : ∀ i, IdentDistrib (X i) (X 0) μ μ) :
+    ∀ᵐ ω ∂μ, Tendsto (fun n : ℕ ↦ (n : ℝ) ⁻¹ • (∑ i ∈ range n, X i ω)) atTop (𝓝 μ[X 0]) := by
   /- Choose a simple function `φ` such that `φ (X 0)` approximates well enough `X 0` -- this is
   possible as `X 0` is strongly measurable. Then `φ (X n)` approximates well `X n`.
   Then the strong law for `φ (X n)` implies the strong law for `X n`, up to a small
@@ -717,12 +722,12 @@ lemma strong_law_ae_of_measurable
     SimpleFunc.nearestPt (fun k => Nat.casesOn k 0 ((↑) ∘ denseSeq s) : ℕ → E)
   let Y : ℕ → ℕ → Ω → E := fun k i ↦ (φ k) ∘ (X i)
   -- strong law for `φ (X n)`
-  have A : ∀ᵐ ω, ∀ k,
-      Tendsto (fun n : ℕ ↦ (n : ℝ) ⁻¹ • (∑ i ∈ range n, Y k i ω)) atTop (𝓝 𝔼[Y k 0]) :=
+  have A : ∀ᵐ ω ∂μ, ∀ k,
+      Tendsto (fun n : ℕ ↦ (n : ℝ) ⁻¹ • (∑ i ∈ range n, Y k i ω)) atTop (𝓝 μ[Y k 0]) :=
     ae_all_iff.2 (fun k ↦ strong_law_ae_simpleFunc_comp X h'.measurable hindep hident (φ k))
   -- strong law for the error `‖X i - φ (X i)‖`
-  have B : ∀ᵐ ω, ∀ k, Tendsto (fun n : ℕ ↦ (∑ i ∈ range n, ‖(X i - Y k i) ω‖) / n)
-        atTop (𝓝 𝔼[(fun ω ↦ ‖(X 0 - Y k 0) ω‖)]) := by
+  have B : ∀ᵐ ω ∂μ, ∀ k, Tendsto (fun n : ℕ ↦ (∑ i ∈ range n, ‖(X i - Y k i) ω‖) / n)
+        atTop (𝓝 μ[(fun ω ↦ ‖(X 0 - Y k 0) ω‖)]) := by
     apply ae_all_iff.2 (fun k ↦ ?_)
     let G : ℕ → E → ℝ := fun k x ↦ ‖x - φ k x‖
     have G_meas : ∀ k, Measurable (G k) :=
@@ -730,7 +735,8 @@ lemma strong_law_ae_of_measurable
     have I : ∀ k i, (fun ω ↦ ‖(X i - Y k i) ω‖) = (G k) ∘ (X i) := fun k i ↦ rfl
     apply strong_law_ae_real (fun i ω ↦ ‖(X i - Y k i) ω‖)
     · exact (hint.sub ((φ k).comp (X 0) h'.measurable).integrable_of_isFiniteMeasure).norm
-    · simp_rw [I]
+    · unfold Function.onFun
+      simp_rw [I]
       intro i j hij
       exact (hindep hij).comp (G_meas k) (G_meas k)
     · intro i
@@ -745,33 +751,33 @@ lemma strong_law_ae_of_measurable
   obtain ⟨δ, δpos, hδ⟩ : ∃ δ, 0 < δ ∧ δ + δ + δ < ε := ⟨ε/4, by positivity, by linarith⟩
   -- choose `k` large enough so that `φₖ (X 0)` approximates well enough `X 0`, up to the
   -- precision `δ`.
-  obtain ⟨k, hk⟩ : ∃ k, ∫ ω, ‖(X 0 - Y k 0) ω‖ < δ := by
+  obtain ⟨k, hk⟩ : ∃ k, ∫ ω, ‖(X 0 - Y k 0) ω‖ ∂μ < δ := by
     simp_rw [Pi.sub_apply, norm_sub_rev (X 0 _)]
     exact ((tendsto_order.1 (tendsto_integral_norm_approxOn_sub h'.measurable hint)).2 δ
       δpos).exists
-  have : ‖𝔼[Y k 0] - 𝔼[X 0]‖ < δ := by
+  have : ‖μ[Y k 0] - μ[X 0]‖ < δ := by
     rw [norm_sub_rev, ← integral_sub hint]
     · exact (norm_integral_le_integral_norm _).trans_lt hk
     · exact ((φ k).comp (X 0) h'.measurable).integrable_of_isFiniteMeasure
   -- consider `n` large enough for which the above convergences have taken place within `δ`.
   have I : ∀ᶠ n in atTop, (∑ i ∈ range n, ‖(X i - Y k i) ω‖) / n < δ :=
     (tendsto_order.1 (h'ω k)).2 δ hk
-  have J : ∀ᶠ (n : ℕ) in atTop, ‖(n : ℝ) ⁻¹ • (∑ i ∈ range n, Y k i ω) - 𝔼[Y k 0]‖ < δ := by
+  have J : ∀ᶠ (n : ℕ) in atTop, ‖(n : ℝ) ⁻¹ • (∑ i ∈ range n, Y k i ω) - μ[Y k 0]‖ < δ := by
     specialize hω k
     rw [tendsto_iff_norm_sub_tendsto_zero] at hω
     exact (tendsto_order.1 hω).2 δ δpos
   filter_upwards [I, J] with n hn h'n
   -- at such an `n`, the strong law is realized up to `ε`.
   calc
-  ‖(n : ℝ)⁻¹ • ∑ i ∈ Finset.range n, X i ω - 𝔼[X 0]‖
+  ‖(n : ℝ)⁻¹ • ∑ i ∈ Finset.range n, X i ω - μ[X 0]‖
     = ‖(n : ℝ)⁻¹ • ∑ i ∈ Finset.range n, (X i ω - Y k i ω) +
-        ((n : ℝ)⁻¹ • ∑ i ∈ Finset.range n, Y k i ω - 𝔼[Y k 0]) + (𝔼[Y k 0] - 𝔼[X 0])‖ := by
+        ((n : ℝ)⁻¹ • ∑ i ∈ Finset.range n, Y k i ω - μ[Y k 0]) + (μ[Y k 0] - μ[X 0])‖ := by
       congr
       simp only [Function.comp_apply, sum_sub_distrib, smul_sub]
       abel
   _ ≤ ‖(n : ℝ)⁻¹ • ∑ i ∈ Finset.range n, (X i ω - Y k i ω)‖ +
-        ‖(n : ℝ)⁻¹ • ∑ i ∈ Finset.range n, Y k i ω - 𝔼[Y k 0]‖ + ‖𝔼[Y k 0] - 𝔼[X 0]‖ :=
-      norm_add₃_le _ _ _
+        ‖(n : ℝ)⁻¹ • ∑ i ∈ Finset.range n, Y k i ω - μ[Y k 0]‖ + ‖μ[Y k 0] - μ[X 0]‖ :=
+      norm_add₃_le
   _ ≤ (∑ i ∈ Finset.range n, ‖X i ω - Y k i ω‖) / n + δ + δ := by
       gcongr
       simp only [Function.comp_apply, norm_smul, norm_inv, RCLike.norm_natCast,
@@ -783,37 +789,39 @@ lemma strong_law_ae_of_measurable
       exact hn.le
   _ < ε := hδ
 
+omit [IsProbabilityMeasure μ] in
 /-- **Strong law of large numbers**, almost sure version: if `X n` is a sequence of independent
 identically distributed integrable random variables taking values in a Banach space,
 then `n⁻¹ • ∑ i ∈ range n, X i` converges almost surely to `𝔼[X 0]`. We give here the strong
 version, due to Etemadi, that only requires pairwise independence. -/
-theorem strong_law_ae {Ω : Type*} [MeasureSpace Ω]
-    (X : ℕ → Ω → E) (hint : Integrable (X 0))
-    (hindep : Pairwise (fun i j ↦ IndepFun (X i) (X j))) (hident : ∀ i, IdentDistrib (X i) (X 0)) :
-    ∀ᵐ ω, Tendsto (fun n : ℕ ↦ (n : ℝ) ⁻¹ • (∑ i ∈ range n, X i ω)) atTop (𝓝 𝔼[X 0]) := by
+theorem strong_law_ae (X : ℕ → Ω → E) (hint : Integrable (X 0) μ)
+    (hindep : Pairwise ((IndepFun · · μ) on X))
+    (hident : ∀ i, IdentDistrib (X i) (X 0) μ μ) :
+    ∀ᵐ ω ∂μ, Tendsto (fun n : ℕ ↦ (n : ℝ) ⁻¹ • (∑ i ∈ range n, X i ω)) atTop (𝓝 μ[X 0]) := by
   -- First exclude the trivial case where the space is not a probability space
-  by_cases h : ∀ᵐ ω, X 0 ω = 0
-  · have I : ∀ᵐ ω, ∀ i, X i ω = 0 := by
+  by_cases h : ∀ᵐ ω ∂μ, X 0 ω = 0
+  · have I : ∀ᵐ ω ∂μ, ∀ i, X i ω = 0 := by
       rw [ae_all_iff]
       intro i
       exact (hident i).symm.ae_snd (p := fun x ↦ x = 0) measurableSet_eq h
     filter_upwards [I] with ω hω
     simpa [hω] using (integral_eq_zero_of_ae h).symm
-  have : IsProbabilityMeasure (ℙ : Measure Ω) :=
+  have : IsProbabilityMeasure μ :=
     hint.isProbabilityMeasure_of_indepFun (X 0) (X 1) h (hindep zero_ne_one)
   -- we reduce to the case of strongly measurable random variables, by using `Y i` which is strongly
   -- measurable and ae equal to `X i`.
-  have A : ∀ i, Integrable (X i) := fun i ↦ (hident i).integrable_iff.2 hint
+  have A : ∀ i, Integrable (X i) μ := fun i ↦ (hident i).integrable_iff.2 hint
   let Y : ℕ → Ω → E := fun i ↦ (A i).1.mk (X i)
-  have B : ∀ᵐ ω, ∀ n, X n ω = Y n ω :=
+  have B : ∀ᵐ ω ∂μ, ∀ n, X n ω = Y n ω :=
     ae_all_iff.2 (fun i ↦ AEStronglyMeasurable.ae_eq_mk (A i).1)
-  have Yint : Integrable (Y 0) := Integrable.congr hint (AEStronglyMeasurable.ae_eq_mk (A 0).1)
-  have C : ∀ᵐ ω, Tendsto (fun n : ℕ ↦ (n : ℝ) ⁻¹ • (∑ i ∈ range n, Y i ω)) atTop (𝓝 𝔼[Y 0]) := by
+  have Yint : Integrable (Y 0) μ := Integrable.congr hint (AEStronglyMeasurable.ae_eq_mk (A 0).1)
+  have C : ∀ᵐ ω ∂μ,
+      Tendsto (fun n : ℕ ↦ (n : ℝ) ⁻¹ • (∑ i ∈ range n, Y i ω)) atTop (𝓝 μ[Y 0]) := by
     apply strong_law_ae_of_measurable Y Yint ((A 0).1.stronglyMeasurable_mk)
       (fun i j hij ↦ IndepFun.ae_eq (hindep hij) (A i).1.ae_eq_mk (A j).1.ae_eq_mk)
       (fun i ↦ ((A i).1.identDistrib_mk.symm.trans (hident i)).trans (A 0).1.identDistrib_mk)
   filter_upwards [B, C] with ω h₁ h₂
-  have : 𝔼[X 0] = 𝔼[Y 0] := integral_congr_ae (AEStronglyMeasurable.ae_eq_mk (A 0).1)
+  have : μ[X 0] = μ[Y 0] := integral_congr_ae (AEStronglyMeasurable.ae_eq_mk (A 0).1)
   rw [this]
   apply Tendsto.congr (fun n ↦ ?_) h₂
   congr with i
@@ -823,46 +831,46 @@ end StrongLawVectorSpace
 
 section StrongLawLp
 
-variable {Ω : Type*} [MeasureSpace Ω]
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
   {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E] [CompleteSpace E]
   [MeasurableSpace E] [BorelSpace E]
 
 /-- **Strong law of large numbers**, Lᵖ version: if `X n` is a sequence of independent
 identically distributed random variables in Lᵖ, then `n⁻¹ • ∑ i ∈ range n, X i`
 converges in `Lᵖ` to `𝔼[X 0]`. -/
-theorem strong_law_Lp {p : ℝ≥0∞} (hp : 1 ≤ p) (hp' : p ≠ ∞) (X : ℕ → Ω → E) (hℒp : Memℒp (X 0) p)
-    (hindep : Pairwise fun i j => IndepFun (X i) (X j)) (hident : ∀ i, IdentDistrib (X i) (X 0)) :
-    Tendsto (fun (n : ℕ) => eLpNorm (fun ω => (n : ℝ) ⁻¹ • (∑ i ∈ range n, X i ω) - 𝔼[X 0]) p)
+theorem strong_law_Lp {p : ℝ≥0∞} (hp : 1 ≤ p) (hp' : p ≠ ∞) (X : ℕ → Ω → E)
+    (hℒp : MemLp (X 0) p μ) (hindep : Pairwise ((IndepFun · · μ) on X))
+    (hident : ∀ i, IdentDistrib (X i) (X 0) μ μ) :
+    Tendsto (fun (n : ℕ) => eLpNorm (fun ω => (n : ℝ) ⁻¹ • (∑ i ∈ range n, X i ω) - μ[X 0]) p μ)
       atTop (𝓝 0) := by
   -- First exclude the trivial case where the space is not a probability space
-  by_cases h : ∀ᵐ ω, X 0 ω = 0
-  · have I : ∀ᵐ ω, ∀ i, X i ω = 0 := by
+  by_cases h : ∀ᵐ ω ∂μ, X 0 ω = 0
+  · have I : ∀ᵐ ω ∂μ, ∀ i, X i ω = 0 := by
       rw [ae_all_iff]
       intro i
       exact (hident i).symm.ae_snd (p := fun x ↦ x = 0) measurableSet_eq h
-    have A (n : ℕ) : eLpNorm (fun ω => (n : ℝ) ⁻¹ • (∑ i ∈ range n, X i ω) - 𝔼[X 0]) p ℙ = 0 := by
+    have A (n : ℕ) : eLpNorm (fun ω => (n : ℝ) ⁻¹ • (∑ i ∈ range n, X i ω) - μ[X 0]) p μ = 0 := by
       simp only [integral_eq_zero_of_ae h, sub_zero]
       apply eLpNorm_eq_zero_of_ae_zero
       filter_upwards [I] with ω hω
       simp [hω]
     simp [A]
   -- Then use ae convergence and uniform integrability
-  have : IsProbabilityMeasure (ℙ : Measure Ω) := Memℒp.isProbabilityMeasure_of_indepFun
+  have : IsProbabilityMeasure μ := MemLp.isProbabilityMeasure_of_indepFun
     (X 0) (X 1) (zero_lt_one.trans_le hp).ne' hp' hℒp h (hindep zero_ne_one)
-  have hmeas : ∀ i, AEStronglyMeasurable (X i) ℙ := fun i =>
+  have hmeas : ∀ i, AEStronglyMeasurable (X i) μ := fun i =>
     (hident i).aestronglyMeasurable_iff.2 hℒp.1
-  have hint : Integrable (X 0) ℙ := hℒp.integrable hp
-  have havg : ∀ (n : ℕ),
-      AEStronglyMeasurable (fun ω => (n : ℝ) ⁻¹ • (∑ i ∈ range n, X i ω)) ℙ := by
-    intro n
-    exact AEStronglyMeasurable.const_smul (aestronglyMeasurable_sum _ fun i _ => hmeas i) _
-  refine tendsto_Lp_finite_of_tendstoInMeasure hp hp' havg (memℒp_const _) ?_
+  have hint : Integrable (X 0) μ := hℒp.integrable hp
+  have havg (n : ℕ) :
+      AEStronglyMeasurable (fun ω => (n : ℝ) ⁻¹ • (∑ i ∈ range n, X i ω)) μ :=
+    AEStronglyMeasurable.const_smul (aestronglyMeasurable_sum _ fun i _ => hmeas i) _
+  refine tendsto_Lp_finite_of_tendstoInMeasure hp hp' havg (memLp_const _) ?_
     (tendstoInMeasure_of_tendsto_ae havg (strong_law_ae _ hint hindep hident))
   rw [(_ : (fun (n : ℕ) ω => (n : ℝ)⁻¹ • (∑ i ∈ range n, X i ω))
             = fun (n : ℕ) => (n : ℝ)⁻¹ • (∑ i ∈ range n, X i))]
   · apply UniformIntegrable.unifIntegrable
     apply uniformIntegrable_average hp
-    exact Memℒp.uniformIntegrable_of_identDistrib hp hp' hℒp hident
+    exact MemLp.uniformIntegrable_of_identDistrib hp hp' hℒp hident
   · ext n ω
     simp only [Pi.smul_apply, sum_apply]
 

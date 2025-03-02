@@ -7,10 +7,10 @@ import Mathlib.GroupTheory.GroupAction.Pointwise
 import Mathlib.Analysis.LocallyConvex.Basic
 import Mathlib.Analysis.LocallyConvex.BalancedCoreHull
 import Mathlib.Analysis.Seminorm
+import Mathlib.LinearAlgebra.Basis.VectorSpace
 import Mathlib.Topology.Bornology.Basic
-import Mathlib.Topology.Algebra.UniformGroup
+import Mathlib.Topology.Algebra.UniformGroup.Basic
 import Mathlib.Topology.UniformSpace.Cauchy
-import Mathlib.Topology.Algebra.Module.Basic
 
 /-!
 # Von Neumann Boundedness
@@ -41,7 +41,7 @@ von Neumann-bounded sets.
 -/
 
 
-variable {𝕜 𝕜' E E' F ι : Type*}
+variable {𝕜 𝕜' E F ι : Type*}
 
 open Set Filter Function
 open scoped Topology Pointwise
@@ -76,9 +76,6 @@ theorem _root_.Filter.HasBasis.isVonNBounded_iff {q : ι → Prop} {s : ι → S
   refine ⟨fun hA i hi => hA (h.mem_of_mem hi), fun hA V hV => ?_⟩
   rcases h.mem_iff.mp hV with ⟨i, hi, hV⟩
   exact (hA i hi).mono_left hV
-
-@[deprecated (since := "2024-01-12")]
-alias _root_.Filter.HasBasis.isVonNBounded_basis_iff := Filter.HasBasis.isVonNBounded_iff
 
 /-- Subsets of bounded sets are bounded. -/
 theorem IsVonNBounded.subset {s₁ s₂ : Set E} (h : s₁ ⊆ s₂) (hs₂ : IsVonNBounded 𝕜 s₂) :
@@ -131,9 +128,9 @@ protected theorem IsVonNBounded.add (hs : IsVonNBounded 𝕜 s) (ht : IsVonNBoun
 
 end ContinuousAdd
 
-section TopologicalAddGroup
+section IsTopologicalAddGroup
 
-variable [SeminormedRing 𝕜] [AddGroup E] [TopologicalSpace E] [TopologicalAddGroup E]
+variable [SeminormedRing 𝕜] [AddGroup E] [TopologicalSpace E] [IsTopologicalAddGroup E]
   [DistribMulAction 𝕜 E] {s t : Set E}
 
 protected theorem IsVonNBounded.neg (hs : IsVonNBounded 𝕜 s) : IsVonNBounded 𝕜 (-s) := fun U hU ↦ by
@@ -151,7 +148,7 @@ protected theorem IsVonNBounded.sub (hs : IsVonNBounded 𝕜 s) (ht : IsVonNBoun
   rw [sub_eq_add_neg]
   exact hs.add ht.neg
 
-end TopologicalAddGroup
+end IsTopologicalAddGroup
 
 end SeminormedRing
 
@@ -198,7 +195,7 @@ theorem IsVonNBounded.image {σ : 𝕜₁ →+* 𝕜₂} [RingHomSurjective σ] 
     (hs : IsVonNBounded 𝕜₁ s) (f : E →SL[σ] F) : IsVonNBounded 𝕜₂ (f '' s) := by
   have σ_iso : Isometry σ := AddMonoidHomClass.isometry_of_norm σ fun x => RingHomIsometric.is_iso
   have : map σ (𝓝 0) = 𝓝 0 := by
-    rw [σ_iso.embedding.map_nhds_eq, σ.surjective.range_eq, nhdsWithin_univ, map_zero]
+    rw [σ_iso.isEmbedding.map_nhds_eq, σ.surjective.range_eq, nhdsWithin_univ, map_zero]
   have hf₀ : Tendsto f (𝓝 0) (𝓝 0) := f.continuous.tendsto' 0 0 (map_zero f)
   simp only [isVonNBounded_iff_tendsto_smallSets_nhds, ← this, tendsto_map'_iff] at hs ⊢
   simpa only [comp_def, image_smul_setₛₗ _ _ σ f] using hf₀.image_smallSets.comp hs
@@ -244,7 +241,7 @@ theorem isVonNBounded_of_smul_tendsto_zero {ε : ι → 𝕜} {l : Filter ι} [l
 theorem isVonNBounded_iff_smul_tendsto_zero {ε : ι → 𝕜} {l : Filter ι} [l.NeBot]
     (hε : Tendsto ε l (𝓝[≠] 0)) {S : Set E} :
     IsVonNBounded 𝕜 S ↔ ∀ x : ι → E, (∀ n, x n ∈ S) → Tendsto (ε • x) l (𝓝 0) :=
-  ⟨fun hS x hxS => hS.smul_tendsto_zero (Eventually.of_forall hxS) (le_trans hε nhdsWithin_le_nhds),
+  ⟨fun hS _ hxS => hS.smul_tendsto_zero (Eventually.of_forall hxS) (le_trans hε nhdsWithin_le_nhds),
     isVonNBounded_of_smul_tendsto_zero (by exact hε self_mem_nhdsWithin)⟩
 
 end sequence
@@ -322,9 +319,9 @@ theorem IsVonNBounded.of_sub_left (hst : IsVonNBounded 𝕜 (s - t)) (ht : t.Non
 
 end ContinuousAdd
 
-section TopologicalAddGroup
+section IsTopologicalAddGroup
 
-variable [TopologicalAddGroup E] {s t : Set E}
+variable [IsTopologicalAddGroup E] {s t : Set E}
 
 theorem IsVonNBounded.of_sub_right (hst : IsVonNBounded 𝕜 (s - t)) (hs : s.Nonempty) :
     IsVonNBounded 𝕜 t :=
@@ -338,7 +335,7 @@ theorem isVonNBounded_sub :
     IsVonNBounded 𝕜 (s - t) ↔ s = ∅ ∨ t = ∅ ∨ IsVonNBounded 𝕜 s ∧ IsVonNBounded 𝕜 t := by
   simp [sub_eq_add_neg, isVonNBounded_add]
 
-end TopologicalAddGroup
+end IsTopologicalAddGroup
 
 /-- The union of all bounded set is the whole space. -/
 theorem isVonNBounded_covers : ⋃₀ setOf (IsVonNBounded 𝕜) = (Set.univ : Set E) :=
@@ -399,10 +396,10 @@ end UniformAddGroup
 
 variable (𝕜) in
 theorem Filter.Tendsto.isVonNBounded_range [NormedField 𝕜] [AddCommGroup E] [Module 𝕜 E]
-    [TopologicalSpace E] [TopologicalAddGroup E] [ContinuousSMul 𝕜 E]
+    [TopologicalSpace E] [IsTopologicalAddGroup E] [ContinuousSMul 𝕜 E]
     {f : ℕ → E} {x : E} (hf : Tendsto f atTop (𝓝 x)) : Bornology.IsVonNBounded 𝕜 (range f) :=
-  letI := TopologicalAddGroup.toUniformSpace E
-  haveI := comm_topologicalAddGroup_is_uniform (G := E)
+  letI := IsTopologicalAddGroup.toUniformSpace E
+  haveI := uniformAddGroup_of_addCommGroup (G := E)
   hf.cauchySeq.totallyBounded_range.isVonNBounded 𝕜
 
 variable (𝕜) in

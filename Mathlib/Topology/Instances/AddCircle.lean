@@ -9,6 +9,7 @@ import Mathlib.Data.Nat.Totient
 import Mathlib.GroupTheory.Divisible
 import Mathlib.Topology.Connected.PathConnected
 import Mathlib.Topology.IsLocalHomeomorph
+import Mathlib.Topology.Instances.ZMultiples
 
 /-!
 # The additive circle
@@ -80,7 +81,7 @@ theorem continuous_left_toIocMod : ContinuousWithinAt (toIocMod hp a) (Iic x) x 
   rw [(funext fun y => Eq.trans (by rw [neg_neg]) <| toIocMod_neg _ _ _ :
       toIocMod hp a = (fun x => p - x) ∘ toIcoMod hp (-a) ∘ Neg.neg)]
   -- Porting note: added
-  have : ContinuousNeg 𝕜 := TopologicalAddGroup.toContinuousNeg
+  have : ContinuousNeg 𝕜 := IsTopologicalAddGroup.toContinuousNeg
   exact
     (continuous_sub_left _).continuousAt.comp_continuousWithinAt <|
       (continuous_right_toIcoMod _ _ _).comp continuous_neg.continuousWithinAt fun y => neg_le_neg
@@ -136,6 +137,10 @@ theorem coe_sub (x y : 𝕜) : (↑(x - y) : AddCircle p) = (x : AddCircle p) - 
 theorem coe_neg {x : 𝕜} : (↑(-x) : AddCircle p) = -(x : AddCircle p) :=
   rfl
 
+@[norm_cast]
+theorem coe_zero : ↑(0 : 𝕜) = (0 : AddCircle p) :=
+  rfl
+
 theorem coe_eq_zero_iff {x : 𝕜} : (x : AddCircle p) = 0 ↔ ∃ n : ℤ, n • p = x := by
   simp [AddSubgroup.mem_zmultiples_iff]
 
@@ -152,10 +157,6 @@ theorem coe_eq_zero_of_pos_iff (hp : 0 < p) {x : 𝕜} (hx : 0 < x) :
 theorem coe_period : (p : AddCircle p) = 0 :=
   (QuotientAddGroup.eq_zero_iff p).2 <| mem_zmultiples p
 
-/- Porting note (#10618): `simp` attribute removed because linter reports:
-simp can prove this:
-  by simp only [@mem_zmultiples, @QuotientAddGroup.mk_add_of_mem]
--/
 theorem coe_add_period (x : 𝕜) : ((x + p : 𝕜) : AddCircle p) = x := by
   rw [coe_add, ← eq_sub_iff_add_eq', sub_self, coe_period]
 
@@ -271,7 +272,7 @@ theorem continuousAt_equivIoc (hx : x ≠ a) : ContinuousAt (equivIoc p a) x := 
   open_target := isOpen_compl_singleton
   continuousOn_toFun := (AddCircle.continuous_mk' p).continuousOn
   continuousOn_invFun := by
-    exact ContinuousAt.continuousOn
+    exact continuousOn_of_forall_continuousAt
       (fun _ ↦ continuousAt_subtype_val.comp ∘ continuousAt_equivIco p a)
 
 lemma isLocalHomeomorph_coe [DiscreteTopology (zmultiples p)] [DenselyOrdered 𝕜] :
@@ -382,16 +383,13 @@ theorem addOrderOf_period_div {n : ℕ} (h : 0 < n) : addOrderOf ((p / n : 𝕜)
     (mul_left_injective₀ hp.out.ne').eq_iff, Nat.cast_inj, mul_comm] at hk
   exact (Nat.le_of_dvd h0 ⟨_, hk.symm⟩).not_lt hn
 
-variable (p)
-
+variable (p) in
 theorem gcd_mul_addOrderOf_div_eq {n : ℕ} (m : ℕ) (hn : 0 < n) :
     m.gcd n * addOrderOf (↑(↑m / ↑n * p) : AddCircle p) = n := by
   rw [mul_comm_div, ← nsmul_eq_mul, coe_nsmul, IsOfFinAddOrder.addOrderOf_nsmul]
   · rw [addOrderOf_period_div hn, Nat.gcd_comm, Nat.mul_div_cancel']
     exact n.gcd_dvd_left m
   · rwa [← addOrderOf_pos_iff, addOrderOf_period_div hn]
-
-variable {p}
 
 theorem addOrderOf_div_of_gcd_eq_one {m n : ℕ} (hn : 0 < n) (h : m.gcd n = 1) :
     addOrderOf (↑(↑m / ↑n * p) : AddCircle p) = n := by
@@ -400,7 +398,7 @@ theorem addOrderOf_div_of_gcd_eq_one {m n : ℕ} (hn : 0 < n) (h : m.gcd n = 1) 
 
 theorem addOrderOf_div_of_gcd_eq_one' {m : ℤ} {n : ℕ} (hn : 0 < n) (h : m.natAbs.gcd n = 1) :
     addOrderOf (↑(↑m / ↑n * p) : AddCircle p) = n := by
-  induction m
+  cases m
   · simp only [Int.ofNat_eq_coe, Int.cast_natCast, Int.natAbs_ofNat] at h ⊢
     exact addOrderOf_div_of_gcd_eq_one hn h
   · simp only [Int.cast_negSucc, neg_div, neg_mul, coe_neg, addOrderOf_neg]
@@ -481,7 +479,7 @@ theorem card_addOrderOf_eq_totient {n : ℕ} :
         erw [infinite_coe_iff]
         exact infinite_not_isOfFinAddOrder hu
       exact Nat.card_eq_zero_of_infinite
-    · have : IsEmpty { u : AddCircle p // ¬IsOfFinAddOrder u } := by simpa using h
+    · have : IsEmpty { u : AddCircle p // ¬IsOfFinAddOrder u } := by simpa [isEmpty_subtype] using h
       exact Nat.card_of_isEmpty
   · rw [← coe_setOf, Nat.card_congr (setAddOrderOfEquiv p hn),
       n.totient_eq_card_lt_and_coprime]
@@ -591,16 +589,14 @@ homeomorphism of topological spaces. -/
 def homeoIccQuot [TopologicalSpace 𝕜] [OrderTopology 𝕜] : 𝕋 ≃ₜ Quot (EndpointIdent p a) where
   toEquiv := equivIccQuot p a
   continuous_toFun := by
-    -- Porting note: was `simp_rw`
-    rw [quotientMap_quotient_mk'.continuous_iff]
-    simp_rw [continuous_iff_continuousAt,
+    simp_rw [isQuotientMap_quotient_mk'.continuous_iff, continuous_iff_continuousAt,
       continuousAt_iff_continuous_left_right]
     intro x; constructor
     on_goal 1 => erw [equivIccQuot_comp_mk_eq_toIocMod]
     on_goal 2 => erw [equivIccQuot_comp_mk_eq_toIcoMod]
     all_goals
       apply continuous_quot_mk.continuousAt.comp_continuousWithinAt
-      rw [inducing_subtype_val.continuousWithinAt_iff]
+      rw [IsInducing.subtypeVal.continuousWithinAt_iff]
     · apply continuous_left_toIocMod
     · apply continuous_right_toIcoMod
   continuous_invFun :=

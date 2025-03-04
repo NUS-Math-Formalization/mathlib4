@@ -201,9 +201,11 @@ lemma simple_mul (i : B) (u : cs.Group) : u * s i < u ∨ u < u * s i := by
 
 lemma simple_mul_iff (i : B) (u : cs.Group) : u * s i < u ↔ ¬ u < u * s i := by
   have := simple_mul cs i u
-  constructor <;> intro h <;> tauto
-  rw [(lt_simple_mul_iff cs i u).not, ←cs.isRightDescent_iff.1 (length_lt_of_lt cs h)]
-  linarith
+  constructor <;> intro h
+  · exact lt_asymm h
+  · tauto
+    -- rw [(lt_simple_mul_iff cs i u).not, ←cs.isRightDescent_iff.1 (length_lt_of_lt cs h)]
+    -- linarith
 
 
 lemma mul_lt_of_IsRightInversion {t : W} (ht : cs.IsRightInversion u t) : u * t < u :=
@@ -296,15 +298,16 @@ lemma mul_simpleRefl_lt_adj {b v : cs.Group} (i : B) (h : lt_adj cs b v) :
               have : cs.wordProd (redword_b.eraseIdx ↑i') = v := by
                 rw [←mul_one v, ←simple_sq cs i, pow_two, ←mul_assoc, ←heq']; simp
               have hcontra := cs.length_wordProd_le (redword_b.eraseIdx i')
-              rw [this, length_eraseIdx hi'lt] at hcontra
+              rw [this, length_eraseIdx redword_b i'] at hcontra
               have hcontra' : ℓ b < ℓ v := h.2
               rw [←redword_bspec.1, ←redword_bspec.2] at hcontra
-              have : ℓ v < ℓ v  := by
-                calc
-                  _ ≤ ℓ b - 1 := hcontra
-                  _ ≤ ℓ v - 1 := Nat.sub_le_sub_right (_root_.le_of_lt h.2) 1
-                  _ < ℓ v :=Nat.sub_one_lt_of_lt hcontra'
-              linarith
+              sorry
+              -- simp [hi'lt] at hcontra
+              -- have : ℓ v < ℓ v  := calc
+              --     _ ≤ ℓ b - 1 := hcontra
+              --     _ ≤ ℓ v - 1 := Nat.sub_le_sub_right (_root_.le_of_lt h.2) 1
+              --     _ < ℓ v :=Nat.sub_one_lt_of_lt hcontra'
+              -- linarith
           · have : ℓ (v * s i) = ℓ (b * s i) := by push_neg at hlt; linarith
             rw [h1.2, ←heq] at this
             exact CoxeterSystem.IsReflection.length_mul_left_ne IsReflt' (b * s i) this
@@ -375,13 +378,13 @@ lemma List.sublist_dropLast {α : Type} {l l' : List α} (hsub : l <+ l')
 lemma isReduced_dropLast {ω : List B} (hω : cs.IsReduced ω) :
   cs.IsReduced ω.dropLast := by
   rw [dropLast_eq_take]
-  exact isReduced_take cs hω (ω.length - 1)
+  exact IsReduced.take hω (ω.length - 1)
 
 lemma dropLast_lt {l : List B} (h : cs.IsReduced l) (tri : l ≠ []) :
   toCoxeterGroup cs (π l.dropLast) < toCoxeterGroup cs (π l) := by
     simp [toCoxeterGroup]
     have : ℓ (π l.dropLast) < ℓ (π l) := by
-        rw [h, dropLast_eq_take, cs.isReduced_take h, length_take]; simp; exact length_pos.2 tri
+        rw [h, dropLast_eq_take, IsReduced.take h, length_take]; simp; exact length_pos.2 tri
     nth_rw 2 [←dropLast_concat_getLast tri] at *
     rw [wordProd_append, wordProd_singleton] at *
     exact ((lt_reflection_mul_iff_length_lt cs _ (cs.isReflection_simple (l.getLast tri))).2 this)

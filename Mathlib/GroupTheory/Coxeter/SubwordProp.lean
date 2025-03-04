@@ -102,7 +102,7 @@ end SubwordProp
 lemma inv_le_inv_of_le (hlt : u ≤ v) : u⁻¹ ≤ v⁻¹ := by
   rcases exists_reduced_word' cs v with ⟨lv, hlv⟩
   rcases subword_of_le cs hlv.2 hlv.1 hlt with ⟨lu, hlu⟩
-  have := le_of_subword cs ((cs.isReduced_reverse lv).2 hlv.1) (reverse_sublist.2 hlu.2)
+  have := le_of_subword cs (IsReduced.reverse hlv.1) (reverse_sublist.2 hlu.2)
   simp [toCoxeterGroup] at this
   rwa [hlu.1.2, hlv.2]
 
@@ -218,7 +218,7 @@ theorem chainProp (h : u < v) : ∃ p : List cs.Group,
         simp [covby, List.chain'_append] at *
         exact ⟨⟨hl3.1, by
           intro x hx; simp [hl3.2.2] at hx; rw [←hx];
-          exact ⟨(simple_mul_lt_iff cs i v).2 hi, cs.isRightDescent_iff.1 hi⟩⟩, Or.inl hl3.2.1⟩
+          exact ⟨(simple_mul_lt_iff cs i v).2 hi, cs.isRightDescent_iff.1 hi⟩⟩, by simp [hl3.2.1]⟩
     · replace h : u * s i < u :=
         (or_iff_right h ).1 <| mul_reflection cs u (cs.isReflection_simple i)
       have h3 : ℓ (u * s i) = ℓ u - 1 :=
@@ -290,7 +290,7 @@ theorem chainProp (h : u < v) : ∃ p : List cs.Group,
         · have h1 : j + 1 < ((l3.map (· * s i)).take ii ).length := by simpa [length_take]
           have h2 : j < ((l3.map (· * s i)).take ii ).length :=
             (show j < j + 1 by linarith).trans h1
-          rw [getElem_append j h2, getElem_append (j + 1) h1, getElem_take', getElem_take']
+          rw [getElem_append_left h2, getElem_append_left h1, getElem_take', getElem_take']
           simp; have h3 := h9 ⟨j + 1, hjj.trans ii.2⟩ (Fin.lt_def.2 hjj); simp at h3
           have h4 := ((lt_simple_mul_iff cs i _).1 <| h7 ⟨j + 1, hjj.trans ii.2⟩ (Fin.lt_def.2 hjj))
           have h5 := ((lt_simple_mul_iff cs i _).1 <| h7 ⟨j, (show j < j + 1 by linarith).trans
@@ -302,7 +302,7 @@ theorem chainProp (h : u < v) : ∃ p : List cs.Group,
         · by_cases hjj' : j + 1 = ii
           · have h1 : j < ((l3.map (· * s i)).take ii ).length := by
               simp [length_take]; rw [←hjj']; linarith
-            rw [getElem_append j h1, getElem_take']; simp [hjj']
+            rw [getElem_append_left h1, getElem_take']; simp [hjj']
             rw [List.getElem_append_right' (by simp [length_take]) ]; simp
             have h2 : l3[j] * s i = l3[j + 1] := by
               simp [Nat.eq_sub_of_add_eq hjj', Nat.sub_add_cancel (Nat.add_one_le_of_lt h6)]

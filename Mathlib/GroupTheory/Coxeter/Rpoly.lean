@@ -17,7 +17,6 @@ local notation : max "q" => @LaurentPolynomial.T ℤ _ (1)
 local notation : max "q⁻¹" => @LaurentPolynomial.T ℤ _ (-1)
 local notation : max "T₁" => T cs 1
 local notation : max "Tₛ" => T_simple cs
-local notation : max "Tₛ⁻¹" => T_simple_inv cs
 local notation : max "T⁻¹" => Tinv cs
 
 namespace CoxeterSystem
@@ -49,7 +48,7 @@ lemma Rpoly_aux {i : B} {w u : cs.Group} (hiw : cs.IsLeftDescent w i) (hiu : cs.
   rw [← cs.simple_mul_simple_cancel_right i (w := w⁻¹)]
   have : ℓ (w⁻¹ * s i) < ℓ (w⁻¹ * s i * s i) := by
     convert cs.isRightDescent_inv_iff.2 hiw; simp [IsRightDescent]
-  rw [Tinv_mul_simple cs this, Tinv_simple, sub_mul, sub_apply, smul_mul_assoc, smul_apply]
+  rw [Tinv_mul_simple cs this, Tinv_simple', sub_mul, sub_apply, smul_mul_assoc, smul_apply]
   rw [cs.Tsimple_mul_apply_of_gt _ hiu]
   simp [_root_.right_distrib, mul_right_comm, sub_mul]
 
@@ -64,7 +63,7 @@ lemma Rpoly_aux' {i : B} {w u : cs.Group} (hiw : cs.IsLeftDescent w i)
   rw [← cs.simple_mul_simple_cancel_right i (w := w⁻¹)]
   have : ℓ (w⁻¹ * s i) < ℓ (w⁻¹ * s i * s i) := by
     convert cs.isRightDescent_inv_iff.2 hiw; simp [IsRightDescent]
-  rw [Tinv_mul_simple cs this, Tinv_simple, sub_mul, sub_apply, smul_mul_assoc, smul_apply]
+  rw [Tinv_mul_simple cs this, Tinv_simple', sub_mul, sub_apply, smul_mul_assoc, smul_apply]
   replace hiu : ℓ u < ℓ (s i * u) := by
     simp [IsLeftDescent] at hiu
     have := cs.length_simple_mul u i

@@ -29,9 +29,9 @@ class Rpoly (R : cs.Group → cs.Group → LaurentPolynomial ℤ) where
     R u v = R (s i * u) (s i * v)
   not_mem_rD {u v : cs.Group} {i : B} (hui : ¬cs.IsLeftDescent u i) (hvi : cs.IsLeftDescent v i) :
     R u v = q * R (s i * u) (s i * v) + (q - 1) * R u (s i * v)
-
-noncomputable def R : cs.Group → cs.Group → LaurentPolynomial ℤ := fun x w =>
-  T⁻¹ w⁻¹ x * (-1)^(ℓ(w) + (ℓ(x))) * q^(ℓ(w))
+#check ℤ[T;T⁻¹]
+noncomputable def R : cs.Group → cs.Group → ℤ[T;T⁻¹] := fun x w =>
+  T⁻¹ w⁻¹ x * (-1)^(ℓ w + ℓ x) * q^ ℓ w
 
 #check MonoidAlgebra.mul_apply
 
@@ -121,7 +121,8 @@ instance : cs.Rpoly cs.R where
   mem_rD := cs.R_mem_rD
   not_mem_rD := cs.R_not_mem_rD
 
-lemma Unique_Rpoly {R' : cs.Group → cs.Group → LaurentPolynomial ℤ} : cs.Rpoly R' → R' = cs.R := by
+theorem Unique_Rpoly {R' : cs.Group → cs.Group → LaurentPolynomial ℤ} :
+    cs.Rpoly R' → R' = cs.R := by
   sorry
 
 end CoxeterSystem

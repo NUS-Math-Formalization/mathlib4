@@ -91,8 +91,7 @@ def lt' := Relation.TransGen <| lt_adj' (cs := cs)
   equivalent to ` lt_adj' `-/
 lemma lt_adj_iff_lt_adj' : lt_adj cs u v ↔ lt_adj' cs u v := by
   constructor <;> rintro ⟨⟨t, vut⟩, llt⟩
-  · have : cs.IsReflection (u * t * u⁻¹):=
-      IsReflection.conj vut.1 u
+  · have : cs.IsReflection (u * t * u⁻¹):= IsReflection.conj vut.1 u
     exact ⟨⟨u * t * u⁻¹, by simpa⟩, llt⟩
   · have subt : cs.IsReflection (u⁻¹ * t * u) := by
       have := IsReflection.conj vut.1 u⁻¹
@@ -125,7 +124,7 @@ lemma eq_of_le_of_length_ge (hle : le cs u v) (lle : ℓ v ≤ ℓ u) : u = v :=
 instance : PartialOrder cs.Group where
   lt               := lt cs
   le               := le cs
-  le_refl          := fun _             => id Relation.ReflTransGen.refl
+  le_refl          := fun _            => id Relation.ReflTransGen.refl
   le_trans         := fun _ _ _ ha hb  => Relation.ReflTransGen.trans ha hb
   le_antisymm      := fun a b ha hb => eq_of_le_of_length_ge cs ha (length_le_of_le cs hb)
   lt_iff_le_not_le := by

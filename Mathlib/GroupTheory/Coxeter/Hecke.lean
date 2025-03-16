@@ -57,7 +57,10 @@ lemma one_apply : (1 : cs.Hecke) 1 = 1 := by simp [one_def, T]
 lemma T_apply (w : cs.Group) : (T cs w) w = 1 := by simp [T]
 
 instance : Basis W (LaurentPolynomial ℤ) cs.Hecke := Finsupp.basisSingleOne
--- #synth Basis W (LaurentPolynomial ℤ) cs.Hecke
+
+lemma T_repr (h : cs.Hecke) : h = h.sum fun w r => r • T cs w := by
+  rw [←Finsupp.sum_single h]
+  simp [T]
 
 section HeckeMul
 
@@ -325,27 +328,26 @@ lemma one_mul (a : cs.Hecke) :  1 * a = a := by simp [mul_def, HeckeMul]
 @[simp]
 lemma mul_one (a : cs.Hecke) :  a * 1 = a := by simp [mul_def, HeckeMul]
 
-noncomputable instance semiring : Semiring (cs.Hecke) where
-  mul := HeckeMul cs
-  mul_zero := mul_zero cs
-  zero_mul := zero_mul cs
-  left_distrib := left_distrib cs
-  right_distrib := right_distrib cs
-  mul_assoc := mul_assoc cs
+instance : MulOneClass cs.Hecke where
   one_mul := one_mul cs
   mul_one := mul_one cs
 
-instance : NonUnitalNonAssocRing cs.Hecke where
-  mul := HeckeMul cs
-  add_comm := by simp [add_comm]
+instance : NonUnitalNonAssocSemiring cs.Hecke where
   mul_zero := mul_zero cs
   zero_mul := zero_mul cs
   left_distrib := left_distrib cs
   right_distrib := right_distrib cs
+
+instance : NonUnitalNonAssocRing cs.Hecke where
+  __ := inferInstanceAs (NonUnitalNonAssocSemiring cs.Hecke)
   zsmul := zsmulRec
   neg_add_cancel := by simp
   sub_eq_add_neg := by simp [SubNegMonoid.sub_eq_add_neg]
 
+instance semiring : Semiring (cs.Hecke) where
+  __ := inferInstanceAs (NonUnitalNonAssocRing cs.Hecke)
+  __ := inferInstanceAs (MulOneClass cs.Hecke)
+  mul_assoc := mul_assoc cs
 
 lemma smul_assoc (r : LaurentPolynomial ℤ) (x y : cs.Hecke) :
   (r • x) * y = r • (x * y) := by simp [mul_def, HeckeMul]
@@ -375,7 +377,7 @@ lemma T_simple_sq (i : B) : T cs (s i) * T cs (s i) = (q - 1) • T cs (s i) + q
   simp [mul_def, LinearEquiv.apply_symm_apply]
   simp [alg_hom, algEquiv.invFun_apply_T_simple, opl, ←one_def, simple_mul_one, simple_mul_sq]
 
-lemma T_simple_mul_of_lt {i : B} {w : cs.Group} (hlt : ℓ w < ℓ (s i * w)) :
+lemma TsT_of_lt {i : B} {w : cs.Group} (hlt : ℓ w < ℓ (s i * w)) :
   T cs (s i) * T cs w = T cs (s i * w) := by
     simp [mul_def, HeckeMul]
     nth_rw 1 [algEquiv]
@@ -386,10 +388,10 @@ lemma T_simple_mul_of_lt {i : B} {w : cs.Group} (hlt : ℓ w < ℓ (s i * w)) :
     rw [h1]
     simp [opl, simple_mul_of_lt cs i w hlt]
 
-lemma T_simple_mul_of_gt {i : B} {w : cs.Group} (hlt : ℓ (s i * w) < ℓ w) :
+lemma TsT_of_gt {i : B} {w : cs.Group} (hlt : ℓ (s i * w) < ℓ w) :
   T cs (s i) * T cs w = (q - 1) •  T cs w + q • T cs (s i * w) := by
     have h1 : ℓ (s i * w) < ℓ (s i * (s i * w)) := by simp [hlt]
-    have h2 := T_simple_mul_of_lt cs h1
+    have h2 := TsT_of_lt cs h1
     nth_rw 1 [← cs.simple_mul_simple_cancel_left i (w := w), ←h2, ←mul_assoc,T_simple_sq cs i]
     simp [right_distrib, ←one_def, h2]
 
@@ -448,7 +450,7 @@ lemma Tprod_hom_of_reduced (l : List B) (h : cs.IsReduced l) : Tprod cs l = T cs
   · simp [Tprod, one_def]
   · simp [Tprod, wordProd_cons] at ih ⊢
     have h1 : cs.IsReduced tail := CoxeterSystem.IsReduced.drop h 1
-    rw [←T_simple_mul_of_lt, ih h1]
+    rw [←TsT_of_lt, ih h1]
     · simp [T_simple]
     · rw [IsReduced] at h h1
       simp [h, h1, ← wordProd_cons]
@@ -471,7 +473,7 @@ lemma Tinv_isLeftInv (w : cs.Group) : T⁻¹ w * T cs w = 1 := by
     · obtain ⟨i, hi⟩ := cs.exists_leftDescent_of_ne_one w1
       rw [←cs.simple_mul_simple_cancel_left (w:=w) i]
       have l1 : ℓ (s i * w) < ℓ (s i * (s i * w)) := by simp; exact hi
-      rw [Tinv_simple_mul cs l1, ←T_simple_mul_of_lt cs l1]
+      rw [Tinv_simple_mul cs l1, ←TsT_of_lt cs l1]
       rw [mul_assoc, ←mul_assoc cs (T⁻¹ (cs.simple i))]
       simp [Tinv_simple, isLeftInv cs i, ih (s i * w) hi]
 
@@ -533,6 +535,11 @@ lemma map_add' (x y : cs.Hecke) : ι (x + y) = ι x + ι y := by
   rw [finsum_add_distrib (support_of_Hecke_apply_smul_fin _ x)
   (support_of_Hecke_apply_smul_fin _ y)]
 
+def iotaAddHom : AddMonoidHom cs.Hecke cs.Hecke where
+  toFun := iota cs
+  map_zero' := by simp [iota]
+  map_add' := map_add' cs
+
 lemma iota_apply_T_inv_simple (i : B) : ι (T⁻¹ (s i)) = T cs (s i) := by
   simp [Tinv_simple', sub_eq_add_neg, map_add', map_smul', ←neg_smul]
   simp only [iota_apply_T, inv_simple, Tinv_simple', smul_sub, smul_smul]
@@ -541,16 +548,16 @@ lemma iota_apply_T_inv_simple (i : B) : ι (T⁻¹ (s i)) = T cs (s i) := by
 
 lemma map_one' : ι 1 = 1 := by simp [one_def, iota_apply_T]
 
-lemma map_mul_T_simple (i : B) (w : cs.Group) :
+lemma map_mul_TsT (i : B) (w : cs.Group) :
     ι (T cs (s i) * T cs w) = ι (T cs (s i)) * ι (T cs w) := by
   rcases cs.length_simple_mul w i with hlt | hgt
   · replace hlt : ℓ w < ℓ (s i * w) := by omega
-    simp [T_simple_mul_of_lt cs hlt, iota_apply_T]
+    simp [TsT_of_lt cs hlt, iota_apply_T]
     rw [←Tinv_mul_simple]
     rw [show w⁻¹ * s i = ((s i) * w)⁻¹ by simp]
     simp only [length_inv, hlt]
   · replace hgt : ℓ (s i * w) < ℓ w := by omega
-    simp [T_simple_mul_of_gt cs hgt, map_add', map_smul', iota_apply_T]
+    simp [TsT_of_gt cs hgt, map_add', map_smul', iota_apply_T]
     nth_rw 1 [←cs.simple_mul_simple_cancel_right i (w := w⁻¹)]
     have l1 : ℓ (w⁻¹ * s i) < ℓ (w⁻¹ * s i * s i) := by
       nth_rw 1 [show w⁻¹ * s i = (s i * w)⁻¹ by simp, cs.length_inv]
@@ -569,13 +576,37 @@ lemma map_mul_T_simple (i : B) (w : cs.Group) :
     congr
     simp [←neg_smul]
 
+lemma map_mul_Ts (i : B) (h : cs.Hecke) :
+    ι (T cs (s i) * h) = ι (T cs (s i)) * ι h := by
+  have l1 (h1 : cs.Hecke) : ι h1 = iotaAddHom cs h1 := rfl
+  rw [T_repr cs h, Finsupp.mul_sum, l1, map_finsupp_sum]
+  simp_rw [←l1, mul_smul_comm, map_smul', map_mul_TsT, ←mul_smul_comm, ←Finsupp.mul_sum]
+  simp_rw [l1, map_finsupp_sum, ←l1, map_smul']
+
+lemma map_mul_TT (w w' : cs.Group) : ι (T cs w * T cs w') = ι (T cs w) * ι (T cs w') := by
+  induction' w using WellFounded.induction with w ih
+  · exact (Coxeter.wf cs).wf
+  · simp at ih
+    by_cases w1 : w = 1
+    · simp [w1, ←one_def]
+    · obtain ⟨i, hi⟩ := cs.exists_leftDescent_of_ne_one w1
+      have l1 :ℓ (s i * w) < ℓ (s i * (s i * w)) := by simp; exact hi
+      rw [←cs.simple_mul_simple_cancel_left (w := w) i, ←TsT_of_lt cs l1]
+      simp_rw [mul_assoc, map_mul_Ts, ih (s i * w) hi, mul_assoc]
+
 lemma map_mul' (x y : cs.Hecke) : ι (x * y) = ι x * ι y := by
-  -- simp
-  sorry
+  rw [T_repr cs x, Finsupp.sum_mul y x, T_repr cs y]
+  have l1 (h : cs.Hecke) : ι h = iotaAddHom cs h := rfl
+  rw [l1, map_finsupp_sum]
+  simp_rw [Finsupp.mul_sum, map_finsupp_sum, ←l1, mul_smul_comm, smul_mul_assoc, smul_smul,mul_comm]
+  conv  =>
+    lhs; congr; rfl; intro h1 r1; congr; rfl; intro h2 r2;
+    rw [map_smul', map_mul_TT, map_mul, mul_smul_mul_comm]
+  simp_rw [Finsupp.sum, ← Finset.sum_mul_sum, l1, map_sum, ←l1, map_smul']
 
 lemma map_zero' : ι 0 = 0 := by simp [iota]
 
-instance : RingHom cs.Hecke cs.Hecke where
+def iota' : RingHom cs.Hecke cs.Hecke where
   toFun := iota cs
   map_one':= map_one' cs
   map_mul':= map_mul' cs
@@ -589,26 +620,38 @@ def iotaA' : RingHom (LaurentPolynomial ℤ) (LaurentPolynomial ℤ) where
   map_zero' := by simp
   map_add' := by simp
 
-instance : LinearMap iotaA' cs.Hecke cs.Hecke where
+instance l2 : LinearMap iotaA' cs.Hecke cs.Hecke where
   toFun := iota cs
   map_add' := map_add' cs
   map_smul' := by simp [iotaA', map_smul']
 
-lemma T_repr (h : cs.Hecke) : h = h.sum fun w r => r • T cs w := by
-  sorry
 
 lemma iota_sq_apply_T_simple (i : B) : ι^[2] (T cs (s i)) = T cs (s i):= by
   simp [iota_apply_T,iota_apply_T_inv_simple]
 
 lemma iota_sq_apply_T (w : cs.Group) : ι^[2] (T cs w) = T cs w := by
   simp
-  let l := Classical.choose <| cs.exists_reduced_word w
-
-  sorry
+  induction' w using WellFounded.induction with w ih
+  · exact (Coxeter.wf cs).wf
+  · simp at ih
+    by_cases w1 : w = 1
+    · simp [w1, ←one_def, map_one']
+    · obtain ⟨i, hi⟩ := cs.exists_leftDescent_of_ne_one w1
+      nth_rw 1 [←cs.simple_mul_simple_cancel_left (w := w) i]
+      have l1 : ℓ (s i * w) < ℓ (s i * (s i * w)) := by simp; exact hi
+      have l2 (h1 : cs.Hecke) : ι (ι h1) = ι^[2] h1 := rfl
+      rw [←TsT_of_lt cs l1, map_mul', map_mul', l2]
+      simp [iota_sq_apply_T_simple, ih (s i * w) hi, TsT_of_lt cs l1]
 
 lemma iota_sq_apply (h : cs.Hecke) : ι^[2] h = h := by
-
-  sorry
+  rw [T_repr cs h]
+  simp
+  have l1 (h1 : cs.Hecke) : ι h1 = (iota' cs) h1 := rfl
+  have l2 (h1 : cs.Hecke) : ι (ι h1) = ι^[2] h1 := rfl
+  rw [l1, l1, map_finsupp_sum, map_finsupp_sum]
+  simp_rw [←l1, map_smul', ]
+  nth_rw 2 [←LaurentPolynomial.invert_symm]
+  simp only [AlgEquiv.apply_symm_apply, l2, iota_sq_apply_T]
 
 end involution
 

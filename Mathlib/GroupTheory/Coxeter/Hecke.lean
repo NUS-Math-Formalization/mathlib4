@@ -28,6 +28,8 @@ namespace Hecke
 
 open CoxeterSystem Bruhat LaurentPolynomial
 
+open Classical (choose choose_spec)
+
 -- instance : Module (LaurentPolynomial ℤ) cs.Hecke := sorry
 
 local notation : max "End_ε" => Module.End (LaurentPolynomial ℤ) cs.Hecke
@@ -219,13 +221,7 @@ lemma subalg_commute_subalg' (f : subalg cs) (g : subalg' cs) : f.1 ∘ g.1 = g.
     rw [h2, h1]
 
 lemma T_subset_image_of_subalg' (w : cs.Group) : ∃ f, alg_hom' cs f = T cs w := by
-  -- apply CoxeterSystem.simple_induction_right cs w
-  -- · use 1
-  --   simp [alg_hom']
-  -- · intro w i ⟨f, hf⟩
-  --   use ⟨(opr cs i) ∘ₗ f.1, sorry⟩
-  --   simp [alg_hom', opr, mul_simple]
-  --   sorry
+
   sorry
 
 lemma alg_hom'_surj : Function.Surjective (alg_hom' cs) := by
@@ -361,7 +357,12 @@ instance : Algebra (LaurentPolynomial ℤ) cs.Hecke :=
 
 end Hecke
 
-section HeckeMul
+abbrev Coxeter.wf : WellFoundedRelation cs.Group := measure cs.length
+
+@[simp]
+lemma rel_iff_length_lt (u v : cs.Group) : (Coxeter.wf cs).rel u v ↔ ℓ u < ℓ v := by rfl
+
+noncomputable section HeckeMul
 
 noncomputable def choose_reduced_word (w : cs.Group) : List B :=
   Classical.choose <| CoxeterSystem.exists_reduced_word cs w
@@ -382,7 +383,7 @@ lemma TsT_of_lt {i : B} {w : cs.Group} (hlt : ℓ w < ℓ (s i * w)) :
     simp [mul_def, HeckeMul]
     nth_rw 1 [algEquiv]
     simp [alg_hom, algEquiv.invFun_apply_T_simple]
-    rw [←alg_hom,]
+    rw [←alg_hom]
     have h1  (f : subalg cs) : alg_hom cs f = algEquiv cs f := by
       simp only [alg_hom, algEquiv, LinearEquiv.ofBijective_apply, IsLinearMap.mk'_apply]
     rw [h1]
@@ -394,6 +395,49 @@ lemma TsT_of_gt {i : B} {w : cs.Group} (hlt : ℓ (s i * w) < ℓ w) :
     have h2 := TsT_of_lt cs h1
     nth_rw 1 [← cs.simple_mul_simple_cancel_left i (w := w), ←h2, ←mul_assoc,T_simple_sq cs i]
     simp [right_distrib, ←one_def, h2]
+
+--trans
+lemma length_smuls_lt_length_muls {i j: B} {w : cs.Group} (hj : ℓ w < ℓ (w * s j))
+    (hi : ℓ (s i * w) < ℓ w) : ℓ (s i * w * s j) < ℓ (w * s j) := by
+  have h : ℓ (s i * w) + 1 = ℓ w := by
+    rcases cs.length_simple_mul w i with hgt | hlt <;> omega
+  have h' : ℓ (s i * w * s j) ≤ ℓ (w) := by
+    rcases cs.length_mul_simple (s i * w) j with hgt | hlt <;> omega
+  linarith
+
+lemma length_smuls_gt_length_smul {i j: B} {w : cs.Group} (hj : ℓ w < ℓ (w * s j))
+    (hi : ℓ (s i * w) < ℓ w) : ℓ (s i * w) < ℓ (s i * w * s j) := by
+  have h : ℓ (w * s j) = ℓ w + 1 := by
+    rcases cs.length_mul_simple w j with hgt | hlt <;> linarith
+  have h' : ℓ (w) ≤  ℓ (s i * w * s j) := by
+    rw [_root_.mul_assoc]
+    rcases cs.length_simple_mul (w * s j) i with hgt | hlt  <;> omega
+  linarith
+
+lemma TTs_of_lt {i : B} {w : cs.Group} (hlt : ℓ w < ℓ (w * s i)) :
+    T cs w * T cs (s i) = T cs (w * s i) := by
+  induction w using WellFounded.induction
+  · exact (Coxeter.wf cs).wf
+  · rename_i w ih
+    simp at ih
+    by_cases w1 : w = 1
+    · simp [w1, ←one_def]
+    · obtain ⟨j, hj⟩ := cs.exists_leftDescent_of_ne_one w1
+      rw [←cs.simple_mul_simple_cancel_left (w:=w) j]
+      have h1 : ℓ (s j * w) < ℓ (s j * (s j * w)) := by simpa
+      have h2 : ℓ (s j * w) < ℓ (s j * w * s i) := length_smuls_gt_length_smul cs hlt hj
+      have h3 : ℓ (s j * w * s i) < ℓ (s j * (s j * w * s i)) := by
+        simp [show s j * (s j * w * s i) = s j * s j * w * s i by noncomm_ring]
+        exact length_smuls_lt_length_muls cs hlt hj
+      rw [←TsT_of_lt cs h1, mul_assoc, ih (s j * w) hj h2, TsT_of_lt cs h3]
+      congr 1
+      noncomm_ring
+
+lemma TTs_of_gt {i : B} {w : cs.Group} (hlt : ℓ (w * s i) < ℓ w) :
+    T cs w * T cs (s i) = (q - 1) • T cs w + q • T cs (w * s i):= by
+  have h1 : ℓ (w * s i) < ℓ (w * s i * s i) := by simpa
+  nth_rw 1 [← cs.simple_mul_simple_cancel_right i (w := w), ←TTs_of_lt cs h1, mul_assoc]
+  simp [T_simple_sq, left_distrib, TTs_of_lt cs h1, ←one_def]
 
 end HeckeMul
 
@@ -415,11 +459,53 @@ lemma isRightInv (i : B) : T cs (s i) * T_simple_inv cs i = 1 := by
   rw [smul_smul, smul_smul, mul_sub, ←LaurentPolynomial.T_add]
   simp [one_def]
 
+def Tprod (l : List B) : cs.Hecke := (l.map Tₛ).prod
+
+lemma Tprod_hom_of_reduced (l : List B) (h : cs.IsReduced l) : Tprod cs l = T cs (π l) := by
+  induction' l with head tail ih
+  · simp [Tprod, one_def]
+  · simp [Tprod, wordProd_cons] at ih ⊢
+    have h1 : cs.IsReduced tail := CoxeterSystem.IsReduced.drop h 1
+    rw [←TsT_of_lt, ih h1]
+    · simp [T_simple]
+    · rw [IsReduced] at h h1
+      simp [h, h1, ← wordProd_cons]
+
+lemma Tprod_eq_of_reduced_of_wordProd_eq {l₁ l₂ : List B} (h1 : cs.IsReduced l₁)
+    (h2 : cs.IsReduced l₂) (h : π l₁ = π l₂) : Tprod cs l₁ = Tprod cs l₂ := by
+  simp [Tprod_hom_of_reduced cs l₁ h1, Tprod_hom_of_reduced cs l₂ h2, h]
+
 def inv_aux (l : List B) := ((l.reverse).map (T_simple_inv cs)).prod
 
 def Tinv (w : cs.Group) : cs.Hecke :=
   let l := Classical.choose <| cs.exists_reduced_word w;
   inv_aux cs l
+
+lemma Tprod_mul_inv_aux_eq_one (l : List B) : Tprod cs l * inv_aux cs l = 1 := by
+  simp [Tprod, inv_aux]
+  induction l with
+  | nil => simp
+  | cons i l ih => simp [←mul_assoc]; nth_rw 2 [mul_assoc]; simp [ih, T_simple, isRightInv]
+
+lemma inv_aux_mul_Tprod_eq_one (l : List B) : inv_aux cs l * Tprod cs l = 1 := by
+  simp [Tprod, inv_aux]
+  induction l with
+  | nil => simp
+  | cons i l ih => simp [←mul_assoc]; nth_rw 2 [mul_assoc]; simp [ih, T_simple, isLeftInv]
+
+lemma inv_aux_reduced_word_eq {l₁ l₂ : List B} (h1 : cs.IsReduced l₁) (h2 : cs.IsReduced l₂)
+    (h : π l₁ = π l₂) : inv_aux cs l₁ = inv_aux cs l₂ := by
+  suffices inv_aux cs l₁ * Tprod cs l₂ = 1 by
+    apply_fun (· * inv_aux cs l₂) at this
+    simpa [mul_assoc, Tprod_mul_inv_aux_eq_one] using this
+  simp [←Tprod_eq_of_reduced_of_wordProd_eq cs h1 h2 h, inv_aux_mul_Tprod_eq_one]
+
+lemma Tinv_eq_inv_aux_reduced_word {w : cs.Group} {l : List B} (hl : cs.IsReduced l)
+    (h : π l = w) : Tinv cs w = inv_aux cs l := by
+  simp [Tinv]
+  have := (choose_spec <|cs.exists_reduced_word w)
+  apply inv_aux_reduced_word_eq cs _ hl (by simp [h, ←this.2])
+  simp [IsReduced, ←this.2, this.1]
 
 local notation : max "T⁻¹" => Tinv cs
 
@@ -434,36 +520,27 @@ lemma Tinv_one : T⁻¹ 1 = 1 := by
   rw [Tinv, this]
   simp [inv_aux]
 
-lemma Tinv_simple (i : B) : T⁻¹ (s i) = T_simple_inv cs i := by sorry
+lemma Tinv_simple (i : B) : T⁻¹ (s i) = T_simple_inv cs i := by
+  have := Tinv_eq_inv_aux_reduced_word cs (singletonIsReduced cs rfl) (show π [i] = s i by simp)
+  simp [this, inv_aux]
 
-lemma Tinv_simple' (i : B) : T⁻¹ (s i) = q⁻¹ • T cs (s i) - (1 - q⁻¹) • 1 := by sorry
+lemma Tinv_simple' (i : B) : T⁻¹ (s i) = q⁻¹ • T cs (s i) - (1 - q⁻¹) • 1 := by
+  simp [Tinv_simple, T_simple_inv]
 
-abbrev Coxeter.wf : WellFoundedRelation cs.Group := measure cs.length
 
-@[simp]
-lemma rel_iff_length_lt (u v : cs.Group) : (Coxeter.wf cs).rel u v ↔ ℓ u < ℓ v := by rfl
 
-def Tprod (l : List B) : cs.Hecke := (l.map Tₛ).prod
+--trans
+lemma cons_reduced {l : List B} {i : B} (hl : cs.IsReduced l) (h : ℓ (π l) < ℓ (s i * π l)) :
+    cs.IsReduced ([i] ++ l) := by
+  simp [IsReduced]
+  rcases cs.length_simple_mul (π l) i with hlt | hgt
+  · rwa [←hl]
+  · omega
 
-lemma Tprod_hom_of_reduced (l : List B) (h : cs.IsReduced l) : Tprod cs l = T cs (π l) := by
-  induction' l with head tail ih
-  · simp [Tprod, one_def]
-  · simp [Tprod, wordProd_cons] at ih ⊢
-    have h1 : cs.IsReduced tail := CoxeterSystem.IsReduced.drop h 1
-    rw [←TsT_of_lt, ih h1]
-    · simp [T_simple]
-    · rw [IsReduced] at h h1
-      simp [h, h1, ← wordProd_cons]
+lemma inv_aux_cons (i : B) (l : List B) :
+    inv_aux cs (i :: l) = inv_aux cs l * T_simple_inv cs i := by simp [inv_aux]
 
-lemma Tinv_simple_mul {i : B} {u : cs.Group} (h : ℓ u < ℓ (s i * u)) :
-    T⁻¹ (s i * u) = T⁻¹ u * T⁻¹ (s i) := by
-
-  sorry
-
-lemma Tinv_mul_simple {i : B} {u : cs.Group} (h : ℓ u < ℓ (u * s i)) :
-  T⁻¹ (u * s i) = T⁻¹ (s i) * T⁻¹ u :=
-    sorry
-
+-- key : use the lemma `Tinv_eq_inv_aux_reduced_word`
 lemma Tinv_isLeftInv (w : cs.Group) : T⁻¹ w * T cs w = 1 := by
   induction' w using WellFounded.induction with w ih
   · exact (Coxeter.wf cs).wf
@@ -472,12 +549,56 @@ lemma Tinv_isLeftInv (w : cs.Group) : T⁻¹ w * T cs w = 1 := by
     · simp [w1, ←one_def]
     · obtain ⟨i, hi⟩ := cs.exists_leftDescent_of_ne_one w1
       rw [←cs.simple_mul_simple_cancel_left (w:=w) i]
-      have l1 : ℓ (s i * w) < ℓ (s i * (s i * w)) := by simp; exact hi
-      rw [Tinv_simple_mul cs l1, ←TsT_of_lt cs l1]
-      rw [mul_assoc, ←mul_assoc cs (T⁻¹ (cs.simple i))]
-      simp [Tinv_simple, isLeftInv cs i, ih (s i * w) hi]
+      obtain ⟨l, hl⟩ := cs.exists_reduced_word' (s i * w)
+      simp [hl]
+      have h1 : ℓ (s i * w) < ℓ (s i * (s i * w)) := by simpa
+      have h2 : cs.IsReduced ([i] ++ l) := cons_reduced cs hl.1 (by simpa [←hl.2])
+      simp [←wordProd_cons, Tinv_eq_inv_aux_reduced_word cs h2 _, inv_aux_cons, wordProd_cons]
+      simp only [←hl.2, ←TsT_of_lt cs h1]
+      simp only [←mul_assoc, mul_assoc cs _ _ (T cs (s i)), isLeftInv, mul_one]
+      specialize ih (π l) (by simpa [←hl.2])
+      simpa [Tinv_eq_inv_aux_reduced_word cs hl.1, ←hl.2] using ih
 
-lemma Tinv_isRightInv (w : cs.Group) : T cs w *  T⁻¹ w = 1 := by sorry
+lemma Tinv_isRightInv (w : cs.Group) : T cs w * T⁻¹ w = 1 := by
+  induction' w using WellFounded.induction with w ih
+  · exact (Coxeter.wf cs).wf
+  · simp only [rel_iff_length_lt] at ih
+    by_cases w1 : w = 1
+    · simp [w1, ←one_def]
+    · obtain ⟨i, hi⟩ := cs.exists_leftDescent_of_ne_one w1
+      rw [←cs.simple_mul_simple_cancel_left (w:=w) i]
+      obtain ⟨l, hl⟩ := cs.exists_reduced_word' (s i * w)
+      simp [hl]
+      have h1 : ℓ (s i * w) < ℓ (s i * (s i * w)) := by simpa
+      have h2 : cs.IsReduced ([i] ++ l) := cons_reduced cs hl.1 (by simpa [←hl.2])
+      simp [←wordProd_cons, Tinv_eq_inv_aux_reduced_word cs h2 _, inv_aux_cons, wordProd_cons]
+      simp only [←hl.2, ←TsT_of_lt cs h1]
+      simp only [←mul_assoc, mul_assoc cs _ _ (T cs (s i)), isLeftInv, mul_one]
+      specialize ih (π l) (by simpa [←hl.2])
+      simp [Tinv_eq_inv_aux_reduced_word cs hl.1, ←hl.2] at ih
+      conv =>
+        enter [1, 1]; simp [mul_assoc, ih]
+      simp [isRightInv]
+
+lemma Tinv_mul_simple {i : B} {u : cs.Group} (h : ℓ u < ℓ (u * s i)) :
+    T⁻¹ (u * s i) = T⁻¹ (s i) * T⁻¹ u := by
+  suffices T⁻¹ (u * s i) * T cs u * T cs (s i) = 1 by
+    apply_fun (· * T⁻¹ (cs.simple i) * T⁻¹ u) at this
+    simp at this
+    conv at this =>
+      enter [1, 1]; simp [mul_assoc, Tinv_simple, isRightInv]
+    simpa [mul_assoc, Tinv_isRightInv] using this
+  simp [mul_assoc, TTs_of_lt cs h, Tinv_isLeftInv]
+
+lemma Tinv_simple_mul {i : B} {u : cs.Group} (h : ℓ u < ℓ (s i * u)) :
+    T⁻¹ (s i * u) = T⁻¹ u * T⁻¹ (s i) := by
+  suffices T⁻¹ (s i * u) * T cs (s i) * T cs u = 1 by
+    apply_fun (· * T⁻¹ u * T⁻¹ (s i)) at this
+    simp at this
+    conv at this =>
+      enter [1, 1]; simp [mul_assoc, Tinv_isRightInv]
+    simpa [mul_assoc, Tinv_simple, isRightInv] using this
+  simp [mul_assoc, TsT_of_lt cs h, Tinv_isLeftInv]
 
 lemma Tinv_unique (w : cs.Group) : ∀ h, h * T cs w = 1 → h = T⁻¹ w := by
   intro h hh

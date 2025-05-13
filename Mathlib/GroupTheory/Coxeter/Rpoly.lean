@@ -110,7 +110,7 @@ lemma Rpoly_aux {i : B} {w u : cs.Group} (hiw : cs.IsLeftDescent w i) (hiu : cs.
   rw [← cs.simple_mul_simple_cancel_right i (w := w⁻¹)]
   have : ℓ (w⁻¹ * s i) < ℓ (w⁻¹ * s i * s i) := by
     convert cs.isRightDescent_inv_iff.2 hiw; simp [IsRightDescent]
-  rw [Tinv_mul_simple cs this, Tinv_simple', sub_mul, sub_apply, smul_mul_assoc, smul_apply]
+  rw [Tinv_simple_mul cs this, Tinv_simple', sub_mul, sub_apply, smul_mul_assoc, smul_apply]
   rw [cs.Ts_mul_apply_of_gt _ hiu]
   simp [_root_.right_distrib, mul_right_comm, sub_mul]
 
@@ -158,7 +158,7 @@ lemma Rpoly_aux' {i : B} {w u : cs.Group} (hiw : cs.IsLeftDescent w i)
   rw [← cs.simple_mul_simple_cancel_right i (w := w⁻¹)]
   have : ℓ (w⁻¹ * s i) < ℓ (w⁻¹ * s i * s i) := by
     convert cs.isRightDescent_inv_iff.2 hiw; simp [IsRightDescent]
-  rw [Tinv_mul_simple cs this, Tinv_simple', sub_mul, sub_apply, smul_mul_assoc, smul_apply]
+  rw [Tinv_simple_mul cs this, Tinv_simple', sub_mul, sub_apply, smul_mul_assoc, smul_apply]
   replace hiu : ℓ u < ℓ (s i * u) := by
     simp [IsLeftDescent] at hiu
     have := cs.length_simple_mul u i
@@ -271,7 +271,7 @@ lemma R_not_le (u v : cs.Group) : ¬u ≤ v → cs.R u v = 0 := by
       · rw [R_not_mem_rD cs hiu hiv]
         have l1 : ¬ u ≤ s i * v := by
           contrapose! huv
-          apply huv.trans (le_of_IsLeftDescent cs hiv)
+          exact huv.trans (le_of_IsLeftDescent cs hiv)
         have l2 : ¬ toCoxeterGroup cs (s i * u) ≤ s i * v := by
           contrapose! huv
           exact ((ge_of_not_IsLeftDescent cs hiu).trans huv).trans (le_of_IsLeftDescent cs hiv)
@@ -305,3 +305,20 @@ theorem Unique_Rpoly {R' : cs.Group → cs.Group → LaurentPolynomial ℤ} :
       · simp [Rpoly.not_mem_rD hiu hiv, ih (s i * v) hiv (s i * u), ih (s i * v) hiv u]
 
 end CoxeterSystem
+
+section property
+
+variable {h : cs.Hecke}
+
+lemma invert_Rpoly (x w : cs.Group) : (cs.R x w).invert =
+    (-1)^( ℓ x + ℓ w) * q^(ℓ x - ℓ w) * (cs.R x w) := by sorry
+
+--trans
+instance {x w : cs.Group} : Fintype (Set.Icc x w) := sorry
+
+lemma T_inv_eq (w : cs.Group) : T⁻¹ w⁻¹ = ∑ x : Set.Icc 1 w, q⁻¹ ^ (ℓ x) • Hecke.T cs x := by sorry
+
+lemma Rpoly_concat (x w : cs.Group) (h : x < w) :
+    ∑ y : Set.Icc x w, (-1)^(ℓ x + ℓ y) * cs.R x y * cs.R y w = 0 := sorry
+
+end property

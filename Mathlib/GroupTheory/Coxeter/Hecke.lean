@@ -45,6 +45,15 @@ local notation : max "q" => @LaurentPolynomial.T ℤ _ (1)
 local notation : max "q⁻¹" => @LaurentPolynomial.T ℤ _ (-1)
 local notation : max "T₁" => T cs 1
 
+
+--trans
+lemma cons_reduced {l : List B} {i : B} (hl : cs.IsReduced l) (h : ℓ (π l) < ℓ (s i * π l)) :
+    cs.IsReduced ([i] ++ l) := by
+  simp [IsReduced]
+  rcases cs.length_simple_mul (π l) i with hlt | hgt
+  · rwa [←hl]
+  · omega
+
 noncomputable section Hecke
 
 instance : One (cs.Hecke) where
@@ -295,15 +304,43 @@ lemma length_iwj_add_two_eq_of_gt {i j : B} {w : cs.Group} (h : ℓ (s i * w * s
     rcases cs.length_mul_simple (s i * w) j with h2 | h2 <;> omega
   omega
 
-private lemma smul_eq_muls_of_lt {i j : B} {w : cs.Group} (h1 : ℓ (s i * w * s j) = ℓ w)
+open Classical in
+lemma smul_eq_muls_of_lt {i j : B} {w : cs.Group} (h1 : ℓ (s i * w * s j) = ℓ w)
     (h2 : ℓ (s i * w) = ℓ (w * s j)) (h3 : ℓ (s i * w) = ℓ w + 1) : s i * w = w * s j := by
-  replace h3 : ℓ (s i * w * s j) < ℓ (s i * w) := by omega
-  have hl := choose_spec <| cs.exists_reduced_word (s i * w)
-  set l := choose <| cs.exists_reduced_word (s i * w)
-  simp [hl] at h3
-  have h4 := StrongExchange'' cs (cs.isReflection_simple j) h3
-
-  sorry
+  have h4 : ℓ (s i * w * s j) < ℓ (s i * w) := by omega
+  have hl := choose_spec <| cs.exists_reduced_word w
+  set l := choose <| cs.exists_reduced_word w
+  let L := [i] ++ l
+  have hL : cs.IsReduced ([i] ++ l) := by
+    apply cons_reduced cs (by simp [IsReduced, ←hl.2]; exact hl.1.symm)
+    simp [←hl.2]; omega
+  have hL' : π ([i] ++ l) = s i * w := by simp [wordProd_cons, hl.2]
+  simp [←hL'] at h4
+  have h5 := StrongExchange'' cs (cs.isReflection_simple j) h4
+  set idx := List.idxOf (s j) (cs.rightInvSeq (i :: l)) with hidx
+  by_cases lnil : l = []
+  · simp [lnil] at hl h5
+    simp [hl.2, h5]
+  · have h6 := (cs.rightInvSeq (i :: l)).getD_eq_getElem 1 (List.idxOf_lt_length h5)
+    rw [List.getElem_idxOf] at h6
+    by_cases idx0 : idx = 0
+    · simp [←hidx, idx0] at h6
+      simp [←h6, rightInvSeq, ←hl.2]
+      group
+    · have h8 : s i * w * s j = π ((i :: l).eraseIdx idx) := by
+        rw [←h6, ←hL', ←cs.wordProd_mul_getD_rightInvSeq (i :: l) idx]
+        simp [idx]
+      rw [show idx = idx - 1 + 1 by omega,  List.eraseIdx_cons_succ] at h8
+      simp [wordProd_cons, mul_assoc] at h8
+      replace h8 : ℓ (w * s j) < ℓ w := by
+        have := cs.length_wordProd_le (l.eraseIdx (idx - 1))
+        have h9 : idx - 1 < l.length := by
+          apply Nat.sub_lt_left_of_lt_add (by omega)
+          convert List.idxOf_lt_length h5
+          simp [length_rightInvSeq, add_comm]
+        rw [List.length_eraseIdx_of_lt h9, hl.1, ←h8] at this
+        exact Nat.lt_of_le_sub_one (hl.1 ▸ List.length_pos.2 lnil) this
+      omega
 
 lemma smul_eq_muls {i j : B} {w : cs.Group} (h1 : ℓ (s i * w * s j) = ℓ w)
     (h2 : ℓ (s i * w) = ℓ (w * s j)) : s i * w = w * s j := by
@@ -363,7 +400,6 @@ lemma opl_commute_opr : ∀ i j : B, LinearMap.comp (opr cs j) (opl cs i) =
       rw [mul_simple_of_lt cs (by omega), simple_mul_of_lt cs (by simp [←mul_assoc]; omega)]
       rw [mul_assoc, smul_eq_muls cs eqiwj.symm (by omega)]
 
-#exit
 def generator_set := opl cs '' (Set.univ)
 
 def generator_set' := opr cs '' (Set.univ)
@@ -506,6 +542,7 @@ lemma algEquiv.invFun_apply_one : (algEquiv cs).invFun 1 = 1 := by
   simp [LinearEquiv.symm_apply_eq (algEquiv cs)]
   simp [algEquiv]
 
+#exit
 def HeckeMul : cs.Hecke → cs.Hecke → cs.Hecke :=
   fun x y => (algEquiv cs).toFun ((algEquiv cs).invFun x * (algEquiv cs).invFun y)
 
@@ -735,16 +772,6 @@ lemma Tinv_simple (i : B) : T⁻¹ (s i) = T_simple_inv cs i := by
 
 lemma Tinv_simple' (i : B) : T⁻¹ (s i) = q⁻¹ • T cs (s i) - (1 - q⁻¹) • 1 := by
   simp [Tinv_simple, T_simple_inv]
-
-
-
---trans
-lemma cons_reduced {l : List B} {i : B} (hl : cs.IsReduced l) (h : ℓ (π l) < ℓ (s i * π l)) :
-    cs.IsReduced ([i] ++ l) := by
-  simp [IsReduced]
-  rcases cs.length_simple_mul (π l) i with hlt | hgt
-  · rwa [←hl]
-  · omega
 
 lemma inv_aux_cons (i : B) (l : List B) :
     inv_aux cs (i :: l) = inv_aux cs l * T_simple_inv cs i := by simp [inv_aux]

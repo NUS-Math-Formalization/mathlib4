@@ -36,6 +36,9 @@ lemma StrongExchange {l : List B} (ht : cs.IsReflection t) : ℓ (π l * t) < �
 lemma StrongExchange' {l : List B} (ht : cs.IsReflection t) : ℓ (t * π l) < ℓ π l →
   t ∈ lis l := sorry
 
+lemma StrongExchange'' {l : List B} (ht : cs.IsReflection t) : ℓ (π l * t) < ℓ π l →
+  t ∈ ris l := sorry
+
 /-- If l is not a reduced word of w but a experssion, there exist a subword of l is also a
   expression of w. -/
 lemma DeletionExchange {l : List B} (h : ¬IsReduced cs l) :

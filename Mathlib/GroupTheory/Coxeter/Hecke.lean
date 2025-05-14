@@ -74,6 +74,14 @@ def simple_mul (i : B) (h : cs.Hecke) : cs.Hecke :=
 
 lemma simple_mul_T₁ (i : B) : simple_mul_T cs i 1 = T cs (s i) := by simp [simple_mul_T]
 
+lemma finsupp_smul (x : cs.Hecke) (i : B) :
+    (Function.support fun w ↦ x w • simple_mul_T cs i w).Finite := by
+  suffices (Function.support fun w ↦ x w • simple_mul_T cs i w) ⊆ x.support by
+    apply Set.Finite.subset (by simp) this
+  simp [not_imp_not]
+  intro w hw
+  simp [hw]
+
 open Classical in
 @[simp]
 lemma simple_mul_one (i : B) : simple_mul cs i 1 = T cs (s i) := by
@@ -85,6 +93,17 @@ lemma simple_mul_one (i : B) : simple_mul cs i 1 = T cs (s i) := by
   simp [T, Finsupp.single_apply]
   tauto
 
+lemma simple_mul_smul (r : ℤ[T;T⁻¹]) (i : B) (h : cs.Hecke) :
+    simple_mul cs i (r • h) = r • simple_mul cs i h := by
+  simp [simple_mul]
+  rw [smul_finsum' _ (finsupp_smul cs h i)]
+  simp_rw [smul_smul]
+
+lemma simple_mul_distrib (i : B) (h₁ h₂ : cs.Hecke) :
+    simple_mul cs i (h₁ + h₂) = simple_mul cs i h₁ + simple_mul cs i h₂ := by
+  simp [simple_mul, add_smul]
+  rw [finsum_add_distrib (finsupp_smul cs h₁ i) ((finsupp_smul cs h₂ i))]
+
 open Classical in
 lemma simple_mul_sq (i : B) : simple_mul cs i (T cs (s i)) = (q - 1) • T cs (s i) + q • 1 := by
   nth_rw 1 [simple_mul]
@@ -94,20 +113,35 @@ lemma simple_mul_sq (i : B) : simple_mul cs i (T cs (s i)) = (q - 1) • T cs (s
       simp [Finsupp.single_apply, simple_mul_T, one_def]
   apply finsum_eq_single
   simp [T, Finsupp.single_apply]
-  tauto
+  exact fun x h1 h2 => False.elim <| h1 h2.symm
 
 open Classical in
-lemma simple_mul_of_lt (i : B) (w : cs.Group) (hlt : ℓ w < ℓ (s i * w)) :
+lemma simple_mul_of_lt {i : B} {w : cs.Group} (hlt : ℓ w < ℓ (s i * w)) :
     simple_mul cs i (T cs w) = T cs (cs.simple i * w) := by
   simp [simple_mul]
-  suffices ∑ᶠ (u : cs.Group), (T cs w) u • simple_mul_T cs i u = (T cs w) w • simple_mul_T cs i w by
+  suffices ∑ᶠ (u : cs.Group), (T cs w) u • simple_mul_T cs i u =
+      (T cs w) w • simple_mul_T cs i w by
     nth_rw 1 [this, T]
     simp [Finsupp.single_apply, simple_mul_T]
     intro
     linarith
   apply finsum_eq_single
   simp [T, Finsupp.single_apply]
-  tauto
+  exact fun x h1 h2 => False.elim <| h1 h2.symm
+
+open Classical in
+lemma simple_mul_of_gt {i : B} {w : cs.Group} (hlt : ℓ (s i * w) < ℓ w) :
+    simple_mul cs i (T cs w) = (q-1) • T cs w + q • T cs (s i * w) := by
+  simp [simple_mul]
+  suffices ∑ᶠ (u : cs.Group), (T cs w) u • simple_mul_T cs i u =
+      (T cs w) w • simple_mul_T cs i w by
+    nth_rw 1 [this, T]
+    simp [Finsupp.single_apply, simple_mul_T]
+    intro
+    linarith
+  apply finsum_eq_single
+  simp [T, Finsupp.single_apply]
+  exact fun x h1 h2 => False.elim <| h1 h2.symm
 
 def T_mul_simple (w : cs.Group) (i : B) :=
   ite (ℓ w < ℓ (w * s i)) (T cs (w * s i)) ((q-1) • T cs w + q • T cs (w * s i))
@@ -115,15 +149,55 @@ def T_mul_simple (w : cs.Group) (i : B) :=
 def mul_simple (h : cs.Hecke) (i : B) : cs.Hecke :=
   finsum (fun w:cs.Group => h w • T_mul_simple cs w i)
 
+lemma finsupp_muls (x : cs.Hecke) (i : B) :
+    (Function.support fun w ↦ x w • T_mul_simple cs w i).Finite := by
+  suffices (Function.support fun w ↦ x w • T_mul_simple cs w i) ⊆ x.support by
+    apply Set.Finite.subset (by simp) this
+  simp [not_imp_not]
+  intro w hw
+  simp [hw]
+
+lemma mul_simple_smul (r : ℤ[T;T⁻¹]) (h : cs.Hecke) (j : B) :
+    mul_simple cs (r • h) j = r • mul_simple cs h j := by
+  simp [mul_simple]
+  rw [smul_finsum' _ (finsupp_muls cs h j)]
+  simp_rw [smul_smul]
+
+lemma mul_simple_distrib (h₁ h₂ : cs.Hecke) (j : B) :
+    mul_simple cs (h₁ + h₂) j = mul_simple cs h₁ j + mul_simple cs h₂ j := by
+  simp [mul_simple, add_smul]
+  rw [finsum_add_distrib (finsupp_muls cs h₁ j) (finsupp_muls cs h₂ j)]
+
+open Classical in
+lemma mul_simple_of_lt {i : B} {w : cs.Group} (h : ℓ w < ℓ (w * s i)) :
+    mul_simple cs (T cs w) i = T cs (w * s i) := by
+  simp [mul_simple]
+  suffices ∑ᶠ (u : cs.Group), (T cs w) u • T_mul_simple cs u i =
+      (T cs w) w • T_mul_simple cs w i by
+    nth_rw 1 [this, T]
+    simp [Finsupp.single_apply, T_mul_simple]
+    intro
+    linarith
+  apply finsum_eq_single
+  simp [T, Finsupp.single_apply]
+  exact fun x h1 h2 => False.elim <| h1 h2.symm
+
+open Classical in
+lemma mul_simple_of_gt {i : B} {w : cs.Group} (h : ℓ (w * s i) < ℓ w) :
+    mul_simple cs (T cs w) i = (q-1) • T cs w + q • T cs (w * s i) := by
+  simp [mul_simple]
+  suffices ∑ᶠ (u : cs.Group), (T cs w) u • T_mul_simple cs u i =
+      (T cs w) w • T_mul_simple cs w i by
+    nth_rw 1 [this, T]
+    simp [Finsupp.single_apply, T_mul_simple]
+    intro
+    linarith
+  apply finsum_eq_single
+  simp [T, Finsupp.single_apply]
+  exact fun x h1 h2 => False.elim <| h1 h2.symm
+
 end HeckeMul
 
-lemma finsupp_smul (x : cs.Hecke) (i : B) :
-  (Function.support fun w ↦ x w • simple_mul_T cs i w).Finite := by
-    suffices (Function.support fun w ↦ x w • simple_mul_T cs i w) ⊆ x.support by
-      apply Set.Finite.subset (by simp) this
-    simp [not_imp_not]
-    intro w hw
-    simp [hw]
 
 def opl (i : B) : End_ε where
   toFun := fun h => simple_mul cs i h
@@ -144,17 +218,152 @@ def opr (i : B) : End_ε where
     intro x y
     simp [mul_simple, add_smul]
     rw [finsum_add_distrib]
+    all_goals apply finsupp_muls
+  map_smul' := by
+    intro r x
+    simp [mul_simple, mul_smul]
+    rw [smul_finsum']
+    apply finsupp_muls
 
-    all_goals sorry
-  map_smul' := sorry
+lemma both_lt_of_length_lt_iwj {i j : B} {w : cs.Group} (h : ℓ w < ℓ (s i * w * s j)) :
+    ℓ w + 1 = ℓ (s i * w) ∧ ℓ w + 1 = ℓ (w * s j) := by
+  constructor
+  · rcases cs.length_simple_mul w i with h1 | h1
+    · exact h1.symm
+    · rcases cs.length_mul_simple (s i * w) j with h2 | h2 <;> omega
+  · rcases cs.length_mul_simple w j with h1 | h1
+    · exact h1.symm
+    · rcases cs.length_simple_mul (w * s j) i with h2 | h2 <;>
+      simp [←mul_assoc] at h2 <;> omega
+
+lemma both_gt_of_length_gt_iwj {i j : B} {w : cs.Group} (h : ℓ (s i * w * s j) < ℓ w) :
+    ℓ w = ℓ (s i * w) + 1 ∧ ℓ w = ℓ (w * s j) + 1 := by
+  constructor
+  · rcases cs.length_simple_mul w i with h1 | h1
+    · rcases cs.length_mul_simple (s i * w) j with h2 | h2 <;> omega
+    · exact h1.symm
+  · rcases cs.length_mul_simple w j with h1 | h1
+    · rcases cs.length_simple_mul (w * s j) i with h2 | h2 <;>
+      simp [←mul_assoc] at h2 <;> omega
+    · exact h1.symm
+
+private lemma length_iwj_of_both_lt {i j : B} {w : cs.Group} (hi : ℓ w + 1 = ℓ (s i * w))
+    (hj : ℓ w + 1 = ℓ (w * s j)) : ℓ w < ℓ (s i * w * s j) ∨ ℓ w = ℓ (s i * w * s j) := by
+  by_contra!
+  have h1 : ℓ (s i * w * s j) < ℓ w := by omega
+  replace h1 := both_gt_of_length_gt_iwj cs h1
+  omega
+
+private lemma length_iwj_of_both_gt {i j : B} {w : cs.Group} (hi : ℓ (s i * w) + 1 = ℓ w)
+    (hj : ℓ (w * s j) + 1 = ℓ w) : ℓ (s i * w * s j) < ℓ w ∨ ℓ w = ℓ (s i * w * s j) := by
+  by_contra!
+  have h1 : ℓ w < ℓ (s i * w * s j) := by omega
+  replace h1 := both_lt_of_length_lt_iwj cs h1
+  omega
+
+private lemma length_iwj_of_lti_of_gtj {i j : B} {w : cs.Group} (hi : ℓ w + 1 = ℓ (s i * w))
+    (hj : ℓ (w * s j) + 1 = ℓ w) : ℓ w = ℓ (s i * w * s j) := by
+  by_contra!
+  rcases ne_iff_lt_or_gt.1 this with hlt | hgt
+  · replace hlt := both_lt_of_length_lt_iwj cs hlt; omega
+  · replace hgt := both_gt_of_length_gt_iwj cs hgt; omega
+
+private lemma length_iwj_of_gti_of_ltj {i j : B} {w : cs.Group} (hi : ℓ (s i * w) + 1 = ℓ w)
+    (hj : ℓ w + 1 = ℓ (w * s j)) : ℓ w = ℓ (s i * w * s j) := by
+  by_contra!
+  rcases ne_iff_lt_or_gt.1 this with hlt | hgt
+  · replace hlt := both_lt_of_length_lt_iwj cs hlt; omega
+  · replace hgt := both_gt_of_length_gt_iwj cs hgt; omega
+
+lemma length_iwj_eq_add_two_of_lt {i j : B} {w : cs.Group} (h : ℓ w < ℓ (s i * w * s j)) :
+    ℓ (s i * w * s j) = ℓ w + 2 := by
+  have h1 : ℓ (s i * w) = ℓ w + 1 := by
+    rcases cs.length_simple_mul w i with h1 | h1
+    · omega
+    · rcases cs.length_mul_simple (s i * w) j with h2 | h2 <;> omega
+  have h2 : ℓ (s i * w * s j) = ℓ (s i * w) + 1 := by
+    rcases cs.length_mul_simple (s i * w) j with h2 | h2 <;> omega
+  omega
+
+lemma length_iwj_add_two_eq_of_gt {i j : B} {w : cs.Group} (h : ℓ (s i * w * s j) < ℓ w) :
+    ℓ (s i * w * s j) + 2 = ℓ w := by
+  have h1 : ℓ (s i * w) + 1 = ℓ w := by
+    rcases cs.length_simple_mul w i with h1 | h1
+    · rcases cs.length_mul_simple (s i * w) j with h2 | h2 <;> omega
+    · omega
+  have h2 : ℓ (s i * w * s j) + 1 = ℓ (s i * w) := by
+    rcases cs.length_mul_simple (s i * w) j with h2 | h2 <;> omega
+  omega
+
+private lemma smul_eq_muls_of_lt {i j : B} {w : cs.Group} (h1 : ℓ (s i * w * s j) = ℓ w)
+    (h2 : ℓ (s i * w) = ℓ (w * s j)) (h3 : ℓ (s i * w) = ℓ w + 1) : s i * w = w * s j := by
+  replace h3 : ℓ (s i * w * s j) < ℓ (s i * w) := by omega
+  have hl := choose_spec <| cs.exists_reduced_word (s i * w)
+  set l := choose <| cs.exists_reduced_word (s i * w)
+  simp [hl] at h3
+  have h4 := StrongExchange'' cs (cs.isReflection_simple j) h3
+
+  sorry
+
+lemma smul_eq_muls {i j : B} {w : cs.Group} (h1 : ℓ (s i * w * s j) = ℓ w)
+    (h2 : ℓ (s i * w) = ℓ (w * s j)) : s i * w = w * s j := by
+  rcases cs.length_simple_mul w i with hlt | hgt
+  · exact smul_eq_muls_of_lt cs h1 h2 hlt
+  · have : s i * (s i * w) = (s i * w) * s j :=
+      smul_eq_muls_of_lt cs (w := s i * w) (by simp [h2]) (by simp [h1]) (by simp [hgt])
+    simp only [mul_assoc] at this
+    exact mul_left_cancel this
 
 lemma opl_commute_opr : ∀ i j : B, LinearMap.comp (opr cs j) (opl cs i) =
-  LinearMap.comp (opl cs i) (opr cs j) := by
-    intro i j
-    ext h
-    simp [opl, opr]
-    sorry
+    LinearMap.comp (opl cs i) (opr cs j) := by
+  intro i j
+  apply LinearMap.ext
+  suffices ∀ w : cs.Group, (opr cs j ∘ₗ opl cs i) (T cs w) = (opl cs i ∘ₗ opr cs j) (T cs w) by
+    intro x
+    rw [T_repr cs x]
+    simp only [Finsupp.sum, map_sum, map_smul, LinearMap.coe_comp, Function.comp_apply]
+    simp at this
+    simp_rw [this]
+  intro w
+  simp [opl, opr]
+  rcases cs.length_simple_mul w i with lti | gti <;>
+  rcases cs.length_mul_simple w j with ltj | gtj
+  · rcases length_iwj_of_both_lt cs lti.symm ltj.symm with ltiwj | eqiwj
+    · replace ltiwj : ℓ (s i * w * s j) = ℓ w + 2 := length_iwj_eq_add_two_of_lt cs ltiwj
+      rw [simple_mul_of_lt, mul_simple_of_lt, mul_simple_of_lt, simple_mul_of_lt, mul_assoc]
+      any_goals omega
+      simp [←mul_assoc]; omega
+    · rw [simple_mul_of_lt, mul_simple_of_gt, mul_simple_of_lt, simple_mul_of_gt,
+        mul_assoc, smul_eq_muls]
+      any_goals omega
+      simp [←mul_assoc]; omega
+  · have := length_iwj_of_lti_of_gtj cs lti.symm gtj
+    rw [simple_mul_of_lt cs (by omega), mul_simple_of_gt cs (by omega),
+      mul_simple_of_gt cs (by omega)]
+    simp only [simple_mul_distrib, simple_mul_smul]
+    rw [simple_mul_of_lt, simple_mul_of_lt, mul_assoc]
+    any_goals omega
+    simp [←mul_assoc]; omega
+  · have := length_iwj_of_gti_of_ltj cs gti ltj.symm
+    rw [simple_mul_of_gt cs (by omega), mul_simple_of_lt cs (by omega),
+      simple_mul_of_gt cs (by simp [←mul_assoc]; omega)]
+    simp only [mul_simple_distrib, mul_simple_smul]
+    rw [mul_simple_of_lt cs (by omega), mul_simple_of_lt cs (by omega), mul_assoc]
+  · rcases length_iwj_of_both_gt cs gti gtj with gtiwj | eqiwj
+    · replace gtiwj : ℓ (s i * w * s j) + 2 = ℓ w := length_iwj_add_two_eq_of_gt cs gtiwj
+      rw [simple_mul_of_gt cs (by omega), mul_simple_of_gt cs (by omega)]
+      simp only [mul_simple_distrib, mul_simple_smul, simple_mul_distrib, simple_mul_smul]
+      rw [mul_simple_of_gt cs (by omega), simple_mul_of_gt cs (by omega)]
+      rw [mul_simple_of_gt cs (by omega), simple_mul_of_gt cs (by simp [←mul_assoc]; omega)]
+      simp [smul_add, smul_smul]
+      noncomm_ring
+    · rw [simple_mul_of_gt cs (by omega), mul_simple_of_gt cs (by omega)]
+      simp only [mul_simple_distrib, mul_simple_smul, simple_mul_distrib, simple_mul_smul]
+      rw [mul_simple_of_gt cs (by omega), simple_mul_of_gt cs (by omega)]
+      rw [mul_simple_of_lt cs (by omega), simple_mul_of_lt cs (by simp [←mul_assoc]; omega)]
+      rw [mul_assoc, smul_eq_muls cs eqiwj.symm (by omega)]
 
+#exit
 def generator_set := opl cs '' (Set.univ)
 
 def generator_set' := opr cs '' (Set.univ)

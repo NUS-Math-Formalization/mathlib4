@@ -20,7 +20,6 @@ local prefix:100 "lis" => cs.leftInvSeq
 set_option maxHeartbeats 250000
 namespace Bruhat
 
-
 section SubwordProp
 
 variable {ω l l' : List B}
@@ -187,165 +186,6 @@ lemma chainaux {i : B} (h : u < v) (h1 : cs.IsRightDescent v i) (h2 : ¬ cs.IsRi
       simp at this
       rwa [hl'.1.2, hl.2.1, ←wordProd_dropLast? cs hl.2.2]
 
-theorem chainProp (h : u < v) : ∃ p : List cs.Group,
-  (Chain' (covby cs) p ∧ p.head? = some u ∧ p.getLast? = some v) := by
-  generalize hn : ℓ u + ℓ v = n
-  revert u v
-  induction' n with n ih
-  · intro u v h1 h2
-    have : ℓ v = 0 := by linarith
-    have h1 := length_lt_of_lt cs h1; rw [this] at h1; tauto
-  · intro u v hlt h0
-    have lvpos : 0 < ℓ v := Nat.zero_lt_of_lt (length_lt_of_lt cs hlt)
-    rcases cs.exists_rightDescent_of_ne_one (ne_one_of_gt cs hlt) with ⟨i, hi⟩
-    rcases (isRightDescent_iff_exist_reduced_word_getLast_eq cs).1 hi with ⟨l1, h1⟩
-    rcases subword_of_le cs h1.2.1 h1.1 (le_of_lt hlt) with ⟨l2, h2⟩
-    by_cases h : u < u * s i
-    · have : ℓ (u * s i) = ℓ u + 1 := ((lt_simple_mul_iff cs i u).1 h).symm
-      have := chainaux cs hlt hi (cs.not_isRightDescent_iff.2 this)
-      by_cases h3 : u = v * s i
-      · have llu : ℓ u + 1 = ℓ v := by rw [←cs.isRightDescent_iff.1 hi, h3]
-        exact ⟨[u, v], by simp [covby]; exact ⟨hlt, llu⟩⟩
-      · have ultvs : u < v * s i := lt_of_le_of_ne this h3
-        have lcond : ℓ u + ℓ (v * s i) = n := by
-          have := (cs.isRightDescent_iff).1 hi
-          calc
-            _ = ℓ u + (ℓ (v * s i) + 1 - 1) := rfl
-            _ = ℓ u + ℓ v - 1 := by rw [this, Nat.add_sub_assoc lvpos]
-            _ = _ := by rw [h0]; rfl
-        obtain ⟨l3, hl3⟩ := ih ultvs lcond
-        use (l3.concat v)
-        simp [covby, List.chain'_append] at *
-        exact ⟨⟨hl3.1, by
-          intro x hx; simp [hl3.2.2] at hx; rw [←hx];
-          exact ⟨(simple_mul_lt_iff cs i v).2 hi, cs.isRightDescent_iff.1 hi⟩⟩, by simp [hl3.2.1]⟩
-    · sorry
-    -- · replace h : u * s i < u :=
-    --     (or_iff_right h ).1 <| mul_reflection cs u (cs.isReflection_simple i)
-    --   have h3 : ℓ (u * s i) = ℓ u - 1 :=
-    --     Nat.eq_sub_of_add_eq <| cs.isRightDescent_iff.1 ((simple_mul_lt_iff cs i u).1 h)
-    --   have h4 : 1 ≤ ℓ u := Nat.one_le_of_lt (length_lt_of_lt cs h)
-    --   have lcond : ℓ (u * s i) + ℓ v = n := by rw [h3, ←Nat.sub_add_comm h4, h0]; simp
-    --   obtain ⟨l3, hl3⟩ := ih (h.trans hlt) lcond
-    --   set p : Fin l3.length → Prop := fun ind => (l3[ind] * s i < l3[ind])
-    --   classical
-    --   obtain ⟨l4, hl4⟩ := List.getLast?_eq_some_iff.1 hl3.2.2
-    --   have : l4.length < l3.length := by rw [hl4, length_append, length_singleton]; norm_num
-    --   obtain ⟨l5, hl5⟩ := List.head?_eq_some_iff.1 hl3.2.1
-    --   let ind := Fin.find p
-    --   have h5 : ind.isSome := by
-    --     rw [Fin.isSome_find_iff]
-    --     use ⟨l4.length, this⟩
-    --     simp [p]; rw [show l3[l4.length] = v by simp [hl4]]
-    --     exact mul_lt_of_IsRightInversion cs ⟨cs.isReflection_simple i, hi⟩
-    --   have h6 : (0 : ℕ) < ind.get h5 := by
-    --     by_contra!
-    --     have : (ind.get h5).1 = 0 := by linarith
-    --     have tmp : ind = some ⟨0, by linarith⟩ :=
-    --       Option.eq_some_iff_get_eq.2 ⟨h5, Fin.ext_iff.2 this⟩
-    --     have : ¬p ⟨0, by linarith⟩ := by simp [p, hl5]; exact (simple_mul_iff cs i u).1 h
-    --     exact this (Fin.find_eq_some_iff.1 tmp).1
-    --   set ii := ind.get h5 with hii
-    --   have hii' : ind = some ii := by simp [hii]
-    --   have h7 : ∀ j, j < ii → l3[j] < l3[j] * s i := by
-    --     intro j hj; by_contra!; replace this : l3[j] * s i < l3[j] :=
-    --       (or_iff_left this).1 (simple_mul cs i l3[j])
-    --     have :=  (Fin.find_eq_some_iff.1 hii').2 j this
-    --     exact (not_le_of_lt hj) this
-    --   have aux8 : ii - 1 < l3.length := (Nat.sub_one_lt (show ii.1 ≠ 0 by linarith)).trans ii.2
-    --   have h8 : l3[ii] = l3[ii.1 - 1] * s i := by
-    --     simp; have := List.chain'_iff_get.1 hl3.1 (ii - 1)
-    --       (Nat.sub_lt_sub_right (Nat.add_one_le_of_lt h6) ii.is_lt )
-    --     simp [covby, (Nat.add_one_le_of_lt h6)] at this
-    --     by_contra! h8
-    --     have h9 : l3[ii.1 - 1] < l3[ii.1 - 1] * s i := h7 ⟨ii - 1, aux8⟩ (by simp [Fin.lt_def, h6])
-    --     have h10 := (liftingProp' cs this.1 this.2
-    --       (cs.not_isRightDescent_iff.2 ((lt_simple_mul_iff cs i _).1 h9 ).symm) h8.symm).1
-    --     have := (Fin.find_eq_some_iff.1 hii').1; simp [p] at this
-    --     exact (simple_mul_iff cs i _).1 this h10
-    --   have h9 : ∀ j < ii, 0 < j.1 → l3[j.1 - 1] * s i < l3[j] * s i := by
-    --     intro j hj hj'
-    --     have h1 : j.1 - 1 < l3.length - 1 := (lt_of_lt_of_le (show j.1 - 1 < ii.1 by
-    --       exact lt_of_le_of_lt (Nat.sub_le j.1 1) (Fin.lt_def.1 hj)) (Nat.le_sub_one_of_lt ii.2))
-    --     have := List.chain'_iff_get.1 hl3.1 (j.1 - 1) h1
-    --     simp [covby, Nat.add_one_le_iff.2 hj'] at this
-    --     have h3 := h7 ⟨j.1 - 1, h1.trans (Nat.sub_one_lt (Nat.not_eq_zero_of_lt aux8))⟩
-    --         (Fin.lt_def.2 <| lt_of_le_of_lt (Nat.sub_le j.1 1) (Fin.lt_def.1 hj))
-    --     have h2 : l3[j.1 - 1] * s i ≠ l3[j] := by
-    --       intro h11; have := h7 j hj; simp [←h11] at this
-    --       simp at h3; exact lt_asymm this h3
-    --     have := liftingProp' cs this.1 this.2
-    --       (by simp [IsRightDescent]; exact _root_.le_of_lt (length_lt_of_lt cs h3)) h2
-    --     exact this.2
-    --   use (l3.take ii.1).map (· * s i) ++ (l3.drop (ii.1 + 1))
-    --   constructor
-    --   · simp  [ List.chain'_iff_get]
-    --     intro j hj
-    --     replace hj : j < l3.length - 2 := by
-    --       calc
-    --         _ < ii + (l3.length - (ii + 1)) - 1 := hj
-    --         _ = _ := by
-    --           rw [←Nat.add_sub_assoc, Nat.add_comm, Nat.sub_add_eq]; simp [Nat.sub_sub]
-    --           exact Nat.add_one_le_of_lt ii.2
-    --     by_cases hjj : j + 1 < ii
-    --     · have h1 : j + 1 < ((l3.map (· * s i)).take ii ).length := by simpa [length_take]
-    --       have h2 : j < ((l3.map (· * s i)).take ii ).length :=
-    --         (show j < j + 1 by linarith).trans h1
-    --       rw [getElem_append_left h2, getElem_append_left h1, getElem_take', getElem_take']
-    --       simp; have h3 := h9 ⟨j + 1, hjj.trans ii.2⟩ (Fin.lt_def.2 hjj); simp at h3
-    --       have h4 := ((lt_simple_mul_iff cs i _).1 <| h7 ⟨j + 1, hjj.trans ii.2⟩ (Fin.lt_def.2 hjj))
-    --       have h5 := ((lt_simple_mul_iff cs i _).1 <| h7 ⟨j, (show j < j + 1 by linarith).trans
-    --         (hjj.trans ii.2)⟩ (Fin.lt_def.2 (by linarith)))
-    --       simp at h4 h5
-    --       have := List.chain'_iff_get.1 hl3.1 j (Nat.lt_sub_of_add_lt (hjj.trans ii.2))
-    --       simp [covby] at this
-    --       exact ⟨h3, by rw [←h4, ←h5, this.2] ⟩
-    --     · by_cases hjj' : j + 1 = ii
-    --       · have h1 : j < ((l3.map (· * s i)).take ii ).length := by
-    --           simp [length_take]; rw [←hjj']; linarith
-    --         rw [getElem_append_left h1, getElem_take']; simp [hjj']
-    --         rw [List.getElem_append_right' (by simp [length_take]) ]; simp
-    --         have h2 : l3[j] * s i = l3[j + 1] := by
-    --           simp [Nat.eq_sub_of_add_eq hjj', Nat.sub_add_cancel (Nat.add_one_le_of_lt h6)]
-    --           exact h8.symm
-    --         have := List.chain'_iff_get.1 hl3.1 (j + 1)
-    --           (by apply Nat.add_lt_of_lt_sub; simpa [Nat.sub_sub])
-    --         simp [covby] at this; simp [←hjj',]; rwa [h2]
-    --       · replace hjj' : ii.1 < j + 1 :=
-    --           lt_of_le_of_ne (le_of_not_lt hjj) (by exact fun a ↦ hjj' (id a.symm))
-    --         by_cases h1 : j = ii.1
-    --         · simp [h1, List.getElem_append_right']
-    --           have := List.chain'_iff_get.1 hl3.1 (ii.1 + 1)
-    --             (by apply Nat.add_lt_of_lt_sub; simp [Nat.sub_sub]; rwa [←h1])
-    --           simp [covby] at this; exact this
-    --         · have h1 : ii.1 < j := lt_of_le_of_ne (Nat.le_of_lt_add_one hjj') (by simp [h1];tauto)
-    --           rw [List.getElem_append_right' (by simp [length_take]; linarith)]
-    --           rw [List.getElem_append_right' (by simp [length_take]; linarith)]
-    --           have h2 : ii.1 + 1 + (j - ii.1) = j + 1 := by
-    --             rw [←Nat.add_sub_assoc (_root_.le_of_lt h1), add_rotate, Nat.add_sub_cancel]; abel
-    --           have h3 : ii.1 + 1 + (j + 1 - ii.1) = j + 2 := by
-    --             rw [←Nat.add_sub_assoc (_root_.le_of_lt (h1.trans (by linarith))), add_rotate,
-    --                Nat.add_sub_cancel]; ring
-    --           simp [h2, h3]
-    --           have := List.chain'_iff_get.1 hl3.1 (j + 1)
-    --             (by apply Nat.add_lt_of_lt_sub; simpa [Nat.sub_sub])
-    --           simp [covby] at this; exact this
-    --   · constructor
-    --     · have : map (· * s i) (take (ii.1) l3) ≠ [] := by
-    --         intro h; rw [List.map_eq_nil, List.take_eq_nil_iff] at h; contrapose! h
-    --         exact ⟨Nat.pos_iff_ne_zero.1 h6, by simp [hl4]⟩
-    --       rw [List.head?_append_of_ne_nil ((l3.take ii.1).map (· * s i)) this]
-    --       simp [List.head?_take, Nat.pos_iff_ne_zero.1 h6]
-    --       exact ⟨u * s i, ⟨hl3.2.1, by simp⟩ ⟩
-    --     · by_cases h1 : ii.1 + 1 = l3.length
-    --       · simp [List.drop_eq_nil_iff_le, h1, List.getLast?_take, Nat.pos_iff_ne_zero.1 h6]
-    --         left; use l3[ii.1 - 1]; simp
-    --         have h2 : ii.1 = l3.length - 1 := Nat.eq_sub_of_add_eq h1
-    --         have : l3[ii.1] = v := by simp [h2, hl4]
-    --         rw [←this]; exact h8.symm
-    --       · have : ii.1 + 1 < l3.length := lt_of_le_of_ne (Nat.add_one_le_iff.2 ii.2) (by simp [h1])
-    --         simp; left; simp [List.getLast?_drop, not_le_of_lt this, hl3.2.2]
-
 def uvChain' {α : Type} (r : α → α → Prop) : α → α → List α → Prop :=
   fun u v l => (Chain' r l ∧ l.head? = some u ∧ l.getLast? = some v)
 
@@ -378,28 +218,6 @@ lemma chain_of_length_diff_eq_one (h : u < v) (h1 : ℓ u + 1 = ℓ v)
       exact not_le_of_lt h8.2 this
     simp [h4] at h3
     exact h3
-
-lemma covby_iff (u v : cs.Group): u ⋖ v ↔ covby cs u v := by
-  simp [CovBy, covby]
-  intro hlt
-  constructor <;> intro h
-  · contrapose! h
-    obtain ⟨p, hp⟩ := chainProp cs hlt
-    obtain ⟨inl, h1⟩ := List.head?_getLast?_eq_some hp.2.1 hp.2.2 (ne_of_lt hlt)
-    have h2 : inl ≠ [] := by intro h2; simp [h2] at h1; simp [h1] at hp; exact h hp.2
-    obtain ⟨x, l', h3⟩ := exists_cons_of_ne_nil h2
-    rw [h3] at h1
-    have h4 : Chain' (· < ·) p := Chain'_lt_of_Chain'_covby cs hp.1
-    simp [h1, List.chain'_iff_pairwise] at h4
-    exact ⟨x, ⟨h4.1.1, by simp [h4.2.1] ⟩ ⟩
-  · intro c hc
-    replace hc := h ▸ Nat.add_one_le_of_lt <| length_lt_of_lt cs hc
-    exact fun h => (not_le_of_lt (length_lt_of_lt cs h) hc)
-
-noncomputable instance : GradeOrder ℕ cs.Group where
-  grade := cs.length
-  grade_strictMono := fun _ _ h => length_lt_of_lt cs h
-  covBy_grade := fun _ _ h => (by rw [covby_iff, covby ] at h; simp [←h.2])
 
 end chainProp
 

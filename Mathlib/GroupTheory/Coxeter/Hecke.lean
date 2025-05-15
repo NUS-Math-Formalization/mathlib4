@@ -30,8 +30,6 @@ open CoxeterSystem Bruhat LaurentPolynomial
 
 open Classical (choose choose_spec)
 
--- instance : Module (LaurentPolynomial ℤ) cs.Hecke := sorry
-
 local notation : max "End_ε" => Module.End (LaurentPolynomial ℤ) cs.Hecke
 
 noncomputable instance : Ring End_ε := Module.End.ring
@@ -47,6 +45,36 @@ local notation : max "T₁" => T cs 1
 
 
 --trans
+
+abbrev Coxeter.wf : WellFoundedRelation cs.Group := measure cs.length
+
+@[simp]
+lemma rel_iff_length_lt (u v : cs.Group) : (Coxeter.wf cs).rel u v ↔ ℓ u < ℓ v := by rfl
+
+theorem CoxeterSystem.induction {p : cs.Group → Prop} {w : cs.Group} (p1 : p 1)
+    (pind : ∀ w, p w → ∀ i : B, ℓ w < ℓ (s i * w) → p (s i * w)) : p w := by
+  apply WellFounded.induction (Coxeter.wf cs).wf
+  simp only [rel_iff_length_lt]
+  intro w hy
+  by_cases w1 : w = 1
+  · simpa [w1]
+  · obtain ⟨i, hi⟩ := cs.exists_leftDescent_of_ne_one w1
+    specialize hy (s i * w) hi
+    convert pind (s i * w) hy i (by simpa)
+    simp
+
+theorem CoxeterSystem.induction' {p : cs.Group → Prop} {w : cs.Group} (p1 : p 1)
+    (pind : ∀ w, p w → ∀ i : B, ℓ w < ℓ (w * s i) → p (w * s i)) : p w := by
+  apply WellFounded.induction (Coxeter.wf cs).wf
+  simp only [rel_iff_length_lt]
+  intro w hy
+  by_cases w1 : w = 1
+  · simpa [w1]
+  · obtain ⟨i, hi⟩ := cs.exists_rightDescent_of_ne_one w1
+    specialize hy (w * s i) hi
+    convert pind (w * s i) hy i (by simpa)
+    simp
+
 lemma cons_reduced {l : List B} {i : B} (hl : cs.IsReduced l) (h : ℓ (π l) < ℓ (s i * π l)) :
     cs.IsReduced ([i] ++ l) := by
   simp [IsReduced]
@@ -412,6 +440,14 @@ def alg_hom : subalg cs → cs.Hecke := fun f => f.1 T₁
 
 def alg_hom' : subalg' cs → cs.Hecke := fun f => f.1 T₁
 
+instance isLinearMap : IsLinearMap (LaurentPolynomial ℤ) (alg_hom cs) where
+  map_add := by simp [alg_hom]
+  map_smul := by simp [alg_hom]
+
+instance isLinearMap' : IsLinearMap (LaurentPolynomial ℤ) (alg_hom' cs) where
+  map_add := by simp [alg_hom']
+  map_smul := by simp [alg_hom']
+
 instance subalg.Algebra: Algebra (LaurentPolynomial ℤ) (subalg cs) :=
   Subalgebra.algebra (subalg cs)
 
@@ -466,8 +502,24 @@ lemma subalg_commute_subalg' (f : subalg cs) (g : subalg' cs) : f.1 ∘ g.1 = g.
     rw [h2, h1]
 
 lemma T_subset_image_of_subalg' (w : cs.Group) : ∃ f, alg_hom' cs f = T cs w := by
+  apply CoxeterSystem.induction' (p := fun w => ∃ f, alg_hom' cs f = T cs w)
+  · use 1; simp [alg_hom']
+  · intro w ⟨f, hf⟩ i hi
+    use ⟨(opr cs i) ∘ₗ f, by
+      apply Subalgebra.mul_mem _ _ f.2
+      exact Algebra.subset_adjoin (by simp [generator_set']) ⟩
+    simp only [alg_hom', LinearMap.coe_comp, Function.comp_apply] at hf ⊢
+    simp [hf, opr, mul_simple_of_lt cs hi]
 
-  sorry
+lemma T_subset_image_of_subalg (w : cs.Group) : ∃ f, alg_hom cs f = T cs w := by
+  apply CoxeterSystem.induction (p := fun w => ∃ f, alg_hom cs f = T cs w)
+  · use 1; simp [alg_hom]
+  · intro w ⟨f, hf⟩ i hi
+    use ⟨(opl cs i) ∘ₗ f, by
+      apply Subalgebra.mul_mem _ _ f.2
+      exact Algebra.subset_adjoin (by simp [generator_set]) ⟩
+    simp only [alg_hom, LinearMap.coe_comp, Function.comp_apply] at hf ⊢
+    simp [hf, opl, simple_mul_of_lt cs hi]
 
 lemma alg_hom'_surj : Function.Surjective (alg_hom' cs) := by
   intro h
@@ -508,9 +560,6 @@ lemma inj_aux (f : subalg cs) (h : alg_hom cs f = 0) : f = 0 := by
   rw [ha] at h2
   simp [h2]
 
-instance isLinearMap : IsLinearMap (LaurentPolynomial ℤ) (alg_hom cs) where
-  map_add := by simp [alg_hom]
-  map_smul := by simp [alg_hom]
 
 lemma alg_hom_inj : Function.Injective (alg_hom cs) := by
   intro ⟨f,hf⟩  ⟨g, hg⟩ h
@@ -526,7 +575,27 @@ lemma alg_hom_inj : Function.Injective (alg_hom cs) := by
   simp [←Subalgebra.coe_eq_zero] at h3
   exact h3
 
-lemma alg_hom_surj : Function.Surjective (alg_hom cs) := by sorry
+lemma alg_hom_surj : Function.Surjective (alg_hom cs) := by
+  intro h
+  simp [alg_hom]
+  have := Basis.linearCombination_repr Finsupp.basisSingleOne h
+  rw [Finsupp.linearCombination_apply] at this
+  let preimage : cs.Group → subalg cs :=
+    fun w => Classical.choose <| T_subset_image_of_subalg cs w
+  have preimage_apply (w : cs.Group) : T cs w = alg_hom cs (preimage w) := by
+    simp [preimage]
+    exact (Classical.choose_spec <| T_subset_image_of_subalg cs w).symm
+  use (Finsupp.basisSingleOne.repr h).sum fun i a ↦ a • preimage i
+  constructor
+  · simp
+    apply Subalgebra.sum_mem
+    intro x hx
+    simp
+    exact Subalgebra.smul_mem _ (by simp [preimage]) _
+  · have h1 (i : cs.Group) : alg_hom cs (preimage i) = (preimage i).1 T₁ := by simp [alg_hom]
+    simp [← h1, ← preimage_apply]
+    nth_rw 2 [← this]
+    simp [T]
 
 lemma alg_hom_bijective : Function.Bijective (alg_hom cs) :=
   ⟨alg_hom_inj cs, alg_hom_surj cs⟩
@@ -542,7 +611,7 @@ lemma algEquiv.invFun_apply_one : (algEquiv cs).invFun 1 = 1 := by
   simp [LinearEquiv.symm_apply_eq (algEquiv cs)]
   simp [algEquiv]
 
-#exit
+
 def HeckeMul : cs.Hecke → cs.Hecke → cs.Hecke :=
   fun x y => (algEquiv cs).toFun ((algEquiv cs).invFun x * (algEquiv cs).invFun y)
 
@@ -603,11 +672,6 @@ instance : Algebra (LaurentPolynomial ℤ) cs.Hecke :=
 
 end Hecke
 
-abbrev Coxeter.wf : WellFoundedRelation cs.Group := measure cs.length
-
-@[simp]
-lemma rel_iff_length_lt (u v : cs.Group) : (Coxeter.wf cs).rel u v ↔ ℓ u < ℓ v := by rfl
-
 noncomputable section HeckeMul
 
 noncomputable def choose_reduced_word (w : cs.Group) : List B :=
@@ -633,7 +697,7 @@ lemma TsT_of_lt {i : B} {w : cs.Group} (hlt : ℓ w < ℓ (s i * w)) :
     have h1  (f : subalg cs) : alg_hom cs f = algEquiv cs f := by
       simp only [alg_hom, algEquiv, LinearEquiv.ofBijective_apply, IsLinearMap.mk'_apply]
     rw [h1]
-    simp [opl, simple_mul_of_lt cs i w hlt]
+    simp [opl, simple_mul_of_lt cs hlt]
 
 lemma TsT_of_gt {i : B} {w : cs.Group} (hlt : ℓ (s i * w) < ℓ w) :
   T cs (s i) * T cs w = (q - 1) •  T cs w + q • T cs (s i * w) := by

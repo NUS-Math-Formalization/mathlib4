@@ -270,8 +270,8 @@ lemma mul_simpleRefl_lt_adj {b v : cs.Group} (i : B) (h : lt_adj cs b v) :
           by_contra! hh
           by_cases hlt : ℓ (v * s i) < ℓ (b * s i)
           · rw [h1.2, ←heq] at hlt
-            let  redword_b := choose <| cs.exists_reduced_word' b
             have redword_bspec := choose_spec (cs.exists_reduced_word' b)
+            set  redword_b := choose <| cs.exists_reduced_word' b
             let redword_bsi := redword_b ++ [i]
             have redword_bsieq : π redword_bsi = b * s i := by
               simp_rw [redword_bsi, wordProd_append, wordProd_singleton]; rw [redword_bspec.2]
@@ -302,14 +302,10 @@ lemma mul_simpleRefl_lt_adj {b v : cs.Group} (i : B) (h : lt_adj cs b v) :
               have hcontra := cs.length_wordProd_le (redword_b.eraseIdx i')
               rw [this, length_eraseIdx redword_b i'] at hcontra
               have hcontra' : ℓ b < ℓ v := h.2
+              simp [hi'lt] at hcontra
+              apply Nat.lt_of_le_sub_one (by omega) at hcontra
               rw [←redword_bspec.1, ←redword_bspec.2] at hcontra
-              sorry
-              -- simp [hi'lt] at hcontra
-              -- have : ℓ v < ℓ v  := calc
-              --     _ ≤ ℓ b - 1 := hcontra
-              --     _ ≤ ℓ v - 1 := Nat.sub_le_sub_right (_root_.le_of_lt h.2) 1
-              --     _ < ℓ v :=Nat.sub_one_lt_of_lt hcontra'
-              -- linarith
+              omega
           · have : ℓ (v * s i) = ℓ (b * s i) := by push_neg at hlt; linarith
             rw [h1.2, ←heq] at this
             exact CoxeterSystem.IsReflection.length_mul_left_ne IsReflt' (b * s i) this
